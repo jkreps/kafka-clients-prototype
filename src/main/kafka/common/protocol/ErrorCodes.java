@@ -42,30 +42,35 @@ public class ErrorCodes {
 	 * This error is thrown if the client attempts to send messages to a replica that is not the leader for some partition.
 	 * It indicates that the clients metadata is out of date.
 	 */
-	public static final short NotLeaderForPartition	= 6;
+	public static final short NOT_LEADER_FOR_PARTITION	= 6;
 	
 	/**
 	 * This error is thrown if the request exceeds the user-specified time limit in the request.
 	 */
-	public static final short RequestTimedOut = 7;
+	public static final short REQUEST_TIMED_OUT = 7;
 	
 	/**
 	 * This is not a client facing error and is used only internally by intra-cluster broker communication.
 	 */
-	public static final short BrokerNotAvailable = 8;
+	public static final short BROKER_NOT_AVAILABLE = 8;
 	
-	public static final short ReplicaNotAvailable = 9;
+	public static final short REPLICA_NOT_AVAILABLE = 9;
 	
 	/**
 	 * The server has a configurable maximum message size to avoid unbounded memory allocation. 
 	 * This error is thrown if the client attempt to produce a message larger than this maximum.
 	 */
-	public static final short MessageSizeTooLarge = 10;
+	public static final short MESSAGE_SIZE_TOO_LARGE = 10;
 	
-	public static final short StaleControllerEpochCode = 11;
+	public static final short STALE_CONTROLLOR_EPOCH = 11;
 	
 	/**
 	 * If you specify a string larger than configured maximum for offset metadata
 	 */
-	public static final short OffsetMetadataTooLargeCode =  12;
+	public static final short OFFSET_METADATA_TOO_LARGE =  12;
+	
+	/**
+	 * An unknown network error
+	 */
+	public static final short SERVER_DISCONNECTED = 13;
 }

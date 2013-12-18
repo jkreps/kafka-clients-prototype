@@ -9,9 +9,9 @@ import kafka.common.utils.Utils;
  */
 public abstract class Type {
 
-    public abstract void write(ByteBuffer buffer, Object o);
-    public abstract Object read(ByteBuffer buffer);
-    public abstract int sizeOf(Object o);
+  public abstract void write(ByteBuffer buffer, Object o);
+  public abstract Object read(ByteBuffer buffer);
+  public abstract int sizeOf(Object o);
     	
 	public static final Type INT8 = new Type() {
 		public void write(ByteBuffer buffer, Object o) {
@@ -22,6 +22,9 @@ public abstract class Type {
 		}
 		public int sizeOf(Object o) {
 			return 1;
+		}
+		public String toString() {
+		  return "INT8";
 		}
 	};
 	
@@ -35,6 +38,9 @@ public abstract class Type {
 		public int sizeOf(Object o) {
 			return 2;
 		}
+    public String toString() {
+      return "INT16";
+    }
 	};
 	
 	public static final Type INT32 = new Type() {
@@ -47,6 +53,9 @@ public abstract class Type {
 		public int sizeOf(Object o) {
 			return 4;
 		}
+    public String toString() {
+      return "INT32";
+    }
 	};
 	
 	public static final Type INT64 = new Type() {
@@ -59,6 +68,9 @@ public abstract class Type {
 		public int sizeOf(Object o) {
 			return 8;
 		}
+    public String toString() {
+      return "INT64";
+    }
 	};
 	
 	public static final Type STRING = new Type() {
@@ -78,6 +90,9 @@ public abstract class Type {
 		public int sizeOf(Object o) {
 			return 2 + Utils.utf8Length((String) o);
 		}
+    public String toString() {
+      return "STRING";
+    }
 	};
 	
 	public static final Type BYTES = new Type() {
@@ -96,6 +111,9 @@ public abstract class Type {
 	  public int sizeOf(Object o) {
 	    ByteBuffer buffer = (ByteBuffer) o;
 	    return buffer.remaining();
+	  }
+	  public String toString() {
+	    return "BYTES";
 	  }
 	};
 

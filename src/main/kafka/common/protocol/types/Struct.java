@@ -2,8 +2,6 @@ package kafka.common.protocol.types;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * A record that can be serialized and deserialized according to a pre-defined schema
@@ -52,6 +50,30 @@ public class Struct {
 		return this.values[field.index];
 	}
 	
+	public Struct getStruct(Field field) {
+	  return (Struct) get(field);
+	}
+	
+	public Struct getStruct(String name) {
+	  return (Struct) get(name);
+	}
+	
+	public Integer getInt(Field field) {
+	  return (Integer) get(field);
+	}
+	
+	public Integer getInt(String name) {
+	  return (Integer) get(name);
+	}
+	
+	public Object[] getArray(Field field) {
+	  return (Object[]) get(field);
+	}
+	
+	public Object[] getArray(String name) {
+	  return (Object[]) get(name);
+	}
+	
 	/**
 	 * Set the given field to the specified value
 	 * @param field The field
@@ -73,6 +95,31 @@ public class Struct {
 			throw new IllegalArgumentException("Unknown field: " + name);
 		set(field, value);
 		return this;
+	}
+	
+	/**
+	 * Create a struct for the schema of a container type (struct or array)
+	 * @param field The field to create an instance of
+	 * @return The struct
+	 */
+	public Struct instance(Field field) {
+	  if(field.type() instanceof Schema) {
+	    return new Struct((Schema) field.type());
+	  } else if(field.type() instanceof ArrayOf) {
+	    ArrayOf array = (ArrayOf) field.type();
+	    return new Struct((Schema) array.type());
+	  } else {
+	    throw new IllegalArgumentException("Field " + field.name + " is not a container type, it is of type " + field.type());
+	  }
+	}
+	
+	 /**
+   * Create a struct instance for the given field which must be a container type (struct or array)
+   * @param field The name of the field to create (field must be a schema type)
+   * @return The struct
+   */
+	public Struct instance(String field) {
+	  return instance(schema.get(field));
 	}
 	
 	/**
@@ -103,6 +150,20 @@ public class Struct {
 	  ByteBuffer buffer = ByteBuffer.allocate(sizeOf());
 	  writeTo(buffer);
 	  return new ByteBuffer[]{buffer};
+	}
+	
+	@Override
+	public String toString() {
+	  StringBuilder b = new StringBuilder('{');
+	  for(int i = 0; i < this.values.length; i++) {
+	    b.append(this.schema.get(i).name);
+	    b.append('=');
+	    b.append(this.values[i]);
+	    if(i < this.values.length - 1)
+	      b.append(',');
+	  }
+	  b.append('}');
+	  return b.toString();
 	}
 
 }

@@ -2,6 +2,7 @@ package kafka.clients.producer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -20,6 +21,7 @@ import kafka.common.Cluster;
 import kafka.common.Node;
 import kafka.common.TopicPartition;
 import kafka.common.protocol.ApiKey;
+import kafka.common.protocol.ErrorCodes;
 import kafka.common.protocol.ProtoUtils;
 import kafka.common.protocol.types.ArrayOf;
 import kafka.common.protocol.types.Schema;
@@ -52,6 +54,7 @@ public class Sender implements Runnable {
 	private final long lingerMs;
 	private final short acks;
 	private final int requestTimeout;
+	private final InFlightRequests inFlightRequests;
 	private long lastMetadataFetch = 0L;
 	private Cluster cluster;
 	private Metadata metadata;
@@ -77,6 +80,7 @@ public class Sender implements Runnable {
 		this.running = true;
 		this.requestTimeout = requestTimeout;
 		this.acks = acks;
+		this.inFlightRequests = new InFlightRequests();
 	}
 	
 	/*
@@ -86,7 +90,6 @@ public class Sender implements Runnable {
 	 */
 	public void run() {
     List<NetworkSend> sends = new ArrayList<NetworkSend>();
-		InFlightRequests inFlight = new InFlightRequests();
 		while(running) {
 			// ready partitions - in flight or blacklisted partitions
 			long now = System.currentTimeMillis();
@@ -115,7 +118,7 @@ public class Sender implements Runnable {
 			  } else if(nodeState.get(node) != NodeState.CONNECTED) {
 			    // we are connecting but haven't finished yet.
 			    iter.remove();
-			  } else if(!inFlight.canSendMore(node.id())) {
+			  } else if(!inFlightRequests.canSendMore(node.id())) {
 			    // we haven't finished sending our existing requests
 			    iter.remove();
 			  }
@@ -124,31 +127,33 @@ public class Sender implements Runnable {
 			// should we update our metadata?
 			// TODO: do a periodic refresh just for good measure
 			// TODO: don't hard-code backoff
-			if(fetchMetadata == true && this.lastMetadataFetch > 100)
-			  sends.add(metadataRequest(metadata.topics()));
+			if(fetchMetadata == true && this.lastMetadataFetch > 100) {
+			  InFlightRequest req = metadataRequest(metadata.topics());
+			  sends.add(req.request);
+			  this.inFlightRequests.add(req);
+			}
 			
-			// handle new connections
+			// create produce requests
 			List<RecordBuffer> buffers = this.buffers.drain(ready);
-			
 			collate(cluster, buffers, sends);
 			
+			// do the I/O
 			try {
   			this.selector.poll(1000L, sends);
 			} catch(IOException e) {
 			  throw new RuntimeException(e);
 			}
 			
-			handleResponses(this.selector.completedReceives(), inFlight, now);
+			handleResponses(this.selector.completedReceives(), now);
 			
-			// handle disconnects
-			
+			handleDisconnects(this.selector.disconnected());
 		}
 	}
 	
-	private void handleResponses(List<NetworkReceive> receives, InFlightRequests inFlight, long now) {
+	private void handleResponses(List<NetworkReceive> receives, long now) {
     for(NetworkReceive receive: receives) {
       int source = receive.source();
-      InFlightRequest req = inFlight.nextCompleted(source);
+      InFlightRequest req = inFlightRequests.nextCompleted(source);
       ResponseHeader header = ResponseHeader.parse(receive.payload());
       short apiKey = req.request.header().apiKey();
       Struct body = (Struct) ProtoUtils.currentRequestSchema(apiKey).read(receive.payload());
@@ -160,6 +165,17 @@ public class Sender implements Runnable {
       else
         throw new IllegalStateException("Unexpected response type: " + req.request.header().apiKey());
     }
+	}
+	
+	private void handleDisconnects(List<Integer> disconnects) {
+	  for(int node: disconnects) {
+  	  for(InFlightRequest request: this.inFlightRequests.clearAll(node)) {
+  	    if(request.buffers != null) {
+  	      for(RecordBuffer buffer: request.buffers.values())
+  	        buffer.produceFuture.done(-1L, ErrorCodes.SERVER_DISCONNECTED);
+  	    }
+  	  }
+	  }
 	}
 	
 	private void handleMetadataResponse(Struct response, long now) {
@@ -185,12 +201,14 @@ public class Sender implements Runnable {
       throw new IllegalStateException("Correlation id for response (" + responseHeader.correlationId() + ") does not match request (" + requestHeader.correlationId() + ")");
 	}
 	
-	private NetworkSend metadataRequest(Set<String> topics) {
+	private InFlightRequest metadataRequest(Set<String> topics) {
 	  String[] ts = new String[topics.size()];
 	  topics.toArray(ts);
 	  Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKey.METADATA.id));
 	  body.set("topics", topics);
-	  return new RequestSend(cluster.nextNode().id(), new RequestHeader(ApiKey.METADATA.id, clientId, correlation++), body);
+	  int node = cluster.nextNode().id();
+	  RequestSend send = new RequestSend(node, new RequestHeader(ApiKey.METADATA.id, clientId, correlation++), body);
+	  return new InFlightRequest(send, null);
 	}
 	
 	private void collate(Cluster cluster, List<RecordBuffer> buffers, List<NetworkSend> sends) {
@@ -204,13 +222,18 @@ public class Sender implements Runnable {
 		  }
 		  found.add(buffer); 
 		}
-		for(Map.Entry<Integer, List<RecordBuffer>> entry: collated.entrySet())
-		  sends.add(produceRequest(entry.getKey(), acks, requestTimeout, entry.getValue()));
+		for(Map.Entry<Integer, List<RecordBuffer>> entry: collated.entrySet()) {
+		  InFlightRequest request = produceRequest(entry.getKey(), acks, requestTimeout, entry.getValue());
+		  sends.add(request.request);
+		  this.inFlightRequests.add(request);
+		}
 	}
 	
-	private NetworkSend produceRequest(int destination, short acks, int timeout, List<RecordBuffer> buffers) {
+	private InFlightRequest produceRequest(int destination, short acks, int timeout, List<RecordBuffer> buffers) {
+	  Map<TopicPartition, RecordBuffer> buffersByPartition = new HashMap<TopicPartition, RecordBuffer>();
 	  Map<String, List<RecordBuffer>> buffersByTopic = new HashMap<String, List<RecordBuffer>>();
 	  for(RecordBuffer buffer: buffers) {
+	    buffersByPartition.put(buffer.tp, buffer);
 	    List<RecordBuffer> found = buffersByTopic.get(buffer.tp.topic());
 	    if(found == null) {
 	      found = new ArrayList<RecordBuffer>();
@@ -221,18 +244,17 @@ public class Sender implements Runnable {
 	  Struct produce = new Struct(ProtoUtils.currentRequestSchema(ApiKey.PRODUCE.id));
 	  produce.set("acks", acks);
 	  produce.set("timeout", timeout);
-	  Schema topicDataSchema = (Schema) ((ArrayOf) produce.schema().get("topic_data").type()).type();
-	  Schema partitionDataSchema = (Schema) ((ArrayOf) topicDataSchema.get("data").type()).type();
 	  List<Struct> topicDatas = new ArrayList<Struct>(buffersByTopic.size());
 	  for(Map.Entry<String, List<RecordBuffer>> entry: buffersByTopic.entrySet()) {
-	    Struct topicData = new Struct(topicDataSchema);
+	    Struct topicData = produce.instance("topic_data");
 	    topicData.set("topic_name", entry.getKey());
 	    List<Struct> partitionData = new ArrayList<Struct>();
 	    for(RecordBuffer buffer: entry.getValue()) {
-	      Struct part = new Struct(partitionDataSchema);
-	      part.set("partition", buffer.tp.partition());
-	      part.set("message_set", buffer.records.buffer());
-	      partitionData.add(part);
+	      Struct part = 
+	          topicData.instance("data")
+	                   .set("partition", buffer.tp.partition())
+	                   .set("message_set", buffer.records.buffer());
+ 	      partitionData.add(part);
 	    }
 	    topicData.set("topic_data", partitionData);
 	    topicDatas.add(topicData);
@@ -240,7 +262,8 @@ public class Sender implements Runnable {
 	  produce.set("topic_data", topicDatas);
 	  
 	  RequestHeader header = new RequestHeader(ApiKey.PRODUCE.id, clientId, correlation++);
-	  return new RequestSend(destination, header, produce);
+	  RequestSend send = new RequestSend(destination, header, produce);
+	  return new InFlightRequest(send, buffersByPartition);
 	}
 	
 	void wakeup() {
@@ -248,14 +271,26 @@ public class Sender implements Runnable {
 	}
 	
 	private class InFlightRequest {
-	  RequestSend request;
-	  Map<TopicPartition, RecordBuffer> buffers;
-	  Send send;
-	  NetworkReceive receive;
+	  public Map<TopicPartition, RecordBuffer> buffers;
+	  public RequestSend request;
+	  
+	  public InFlightRequest(RequestSend request, Map<TopicPartition, RecordBuffer> buffers) {
+	    this.buffers = buffers;
+	    this.request = request;
+	  }
 	}
 	
 	private class InFlightRequests {
 	  private final Map<Integer, Deque<InFlightRequest>> requests = new HashMap<Integer, Deque<InFlightRequest>>();
+	  
+	  public void add(InFlightRequest request) {
+	    Deque<InFlightRequest> reqs = this.requests.get(request.request.destination());
+	    if(reqs == null) {
+	      reqs = new ArrayDeque<InFlightRequest>();
+	      this.requests.put(request.request.destination(), reqs);
+	    }
+	    reqs.addFirst(request);
+	  }
 	  
 	  public InFlightRequest nextCompleted(int node) {
 	    Deque<InFlightRequest> reqs = requests.get(node);
@@ -266,15 +301,16 @@ public class Sender implements Runnable {
 	  
 	  public boolean canSendMore(int node) {
 	    Deque<InFlightRequest> queue = requests.get(node);
-	    return queue != null && !queue.isEmpty() && queue.peekFirst().send.remaining() > 0;
+	    return queue != null && !queue.isEmpty() && queue.peekFirst().request.remaining() > 0;
 	  }
 	  
-	  public List<InFlightRequest> clearAll(int node) {
+	  public Iterable<InFlightRequest> clearAll(int node) {
 	    Deque<InFlightRequest> reqs = requests.get(node);
-	    if(reqs == null)
+	    if(reqs == null) {
 	      return Collections.emptyList();
-	    else
-	      return new ArrayList<InFlightRequest>(reqs);
+	    } else {
+	      return requests.remove(node);
+	    }
 	  }
 	}
 	

@@ -75,4 +75,17 @@ public class Schema extends Type {
 		return this.fieldsByName.get(name);
 	}
 	
+	/**
+	 * Display a string representation of the schema
+	 */
+	public String toString() {
+	  StringBuilder b = new StringBuilder();
+	  for(int i = 0; i < this.fields.length; i++) {
+	    b.append(this.fields[i].name);
+	    b.append(':');
+	    b.append(this.fields[i].type());
+	  }
+	  return b.toString();
+	}
+	
 }

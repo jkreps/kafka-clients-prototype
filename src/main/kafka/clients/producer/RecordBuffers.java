@@ -138,7 +138,7 @@ public class RecordBuffers {
 	/**
 	 * TODO: rename
 	 */
-	class RecordBuffer {
+	public class RecordBuffer {
 		int size = 0;
 		boolean full = false;
 		final long begin;

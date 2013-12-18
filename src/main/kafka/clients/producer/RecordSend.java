@@ -2,6 +2,8 @@ package kafka.clients.producer;
 
 import java.util.concurrent.TimeUnit;
 
+import kafka.common.protocol.ErrorCodes;
+
 /**
  * An asynchronously computed response from sending a record
  */
@@ -26,7 +28,10 @@ public class RecordSend {
 	
 	public long offset() throws InterruptedException {
 		result.await();
-		return this.result.baseOffset() + this.relativeOffset;
+		if(result.errorCode() == ErrorCodes.NO_ERROR)
+      return this.result.baseOffset() + this.relativeOffset;
+		else
+		  return -1L;
 	}
 	
 }

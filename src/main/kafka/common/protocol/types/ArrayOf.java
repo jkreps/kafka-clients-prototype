@@ -41,4 +41,8 @@ public class ArrayOf extends Type {
 	  return type;
 	}
 	
+  public String toString() {
+    return "ARRAY(" + type + ")";
+  }
+	
 }
