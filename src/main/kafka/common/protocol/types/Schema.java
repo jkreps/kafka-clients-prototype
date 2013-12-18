@@ -25,7 +25,7 @@ public class Schema extends Type {
 	}
     
 	public void write(ByteBuffer buffer, Object o) {
-    	Record r = (Record) o;
+    	Struct r = (Struct) o;
     	for(int i = 0; i < fields.length; i++) {
     		Field f = fields[i];
     		f.type.write(buffer, r.get(f));
@@ -36,7 +36,7 @@ public class Schema extends Type {
     	Object[] objects = new Object[fields.length];
     	for(int i = 0; i < fields.length; i++)
     		objects[i] = fields[i].type.read(buffer);
-    	return new Record(this, objects);
+    	return new Struct(this, objects);
     }
 	
 	/**
@@ -44,7 +44,7 @@ public class Schema extends Type {
 	 */
 	public int sizeOf(Object o) {
 		int size = 0;
-		Record r = (Record) o;
+		Struct r = (Struct) o;
 		for(int i = 0; i < fields.length; i++)
 			size += fields[i].type.sizeOf(r.get(fields[i]));
 		return size;

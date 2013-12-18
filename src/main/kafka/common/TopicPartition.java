@@ -2,6 +2,7 @@ package kafka.common;
 
 public class TopicPartition {
 
+  private int hash = 0;
 	private final int partition;
 	private final String topic;
 	
@@ -20,10 +21,13 @@ public class TopicPartition {
 
 	@Override
 	public int hashCode() {
+	  if(hash != 0)
+	    return hash;
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + partition;
 		result = prime * result + ((topic == null) ? 0 : topic.hashCode());
+		this.hash = result;
 		return result;
 	}
 

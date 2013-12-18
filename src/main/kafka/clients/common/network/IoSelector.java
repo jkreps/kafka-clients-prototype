@@ -3,6 +3,8 @@ package kafka.clients.common.network;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -17,15 +19,21 @@ import java.util.Set;
  * 
  * This class is not thread safe!
  */
-public class Selector {
+public class IoSelector {
 	
 	private final java.nio.channels.Selector selector;
 	private final Map<Integer, SelectionKey> keys;
+	private final List<NetworkSend> completedSends;
+	private final List<NetworkReceive> completedReceives;
+	private final List<Integer> disconnected;
 	
 
-	public Selector() throws IOException {
+	public IoSelector() throws IOException {
 		this.selector = java.nio.channels.Selector.open();
 		this.keys = new HashMap<Integer, SelectionKey>();
+		this.completedSends = new ArrayList<NetworkSend>();
+		this.completedReceives = new ArrayList<NetworkReceive>();
+		this.disconnected = new ArrayList<Integer>();
 	}
 
 	/**
@@ -45,7 +53,7 @@ public class Selector {
 		channel.configureBlocking(false);
 		channel.connect(address);
 		SelectionKey key = channel.register(this.selector, SelectionKey.OP_CONNECT);
-		key.attach(new Transmissions());
+		key.attach(new Transmissions(id));
 		if(this.keys.containsKey(key))
 			throw new IllegalStateException("There is already a connection for id " + id);
 		this.keys.put(id, key);
@@ -68,21 +76,12 @@ public class Selector {
 	 * Attempt to begin sending the Sends in the send list and return any completed receives in receives list.
 	 * @param timeout The amount of time to wait, in milliseconds. If negative, wait indefinitely.
 	 * @param sends The list of new sends to begin
-	 * @param completed An empty list which this method will populate with completed sends to the remote server
-	 * @param receives An empty list which this method will populate with completed receives to the remove server
-	 * @param disconnects The ids for nodes which disconnected. When filled in by the client this method will initiate a disconnect; when
-	 * the remote node disconnects this method will fill in the value.
 	 */
-	public void poll(long timeout, 
-				     List<Send> sends, 
-					 List<Send> completed, 
-					 List<Receive> receives,
-					 List<Integer> disconnects) throws IOException {
-		if(receives.size() > 0 || completed.size() > 0)
-			throw new IllegalArgumentException("Expected receives and completed list to be empty.");
+	public void poll(long timeout, List<NetworkSend> sends) throws IOException {
+    clear();
 		
 		/* register for write interest on any new sends */
-		for(Send send: sends) {
+		for(NetworkSend send: sends) {
 			SelectionKey key = keyForId(send.destination());
 			Transmissions transmissions = transmissions(key);
 			if(transmissions.hasSend())
@@ -119,7 +118,7 @@ public class Selector {
 						close(key);
 					}
 					if(transmissions.receive.complete()) {
-						receives.add(transmissions.receive);
+						this.completedReceives.add(transmissions.receive);
 						transmissions.clearReceive();
 					}
 				}
@@ -133,8 +132,8 @@ public class Selector {
 					} catch(IOException e) {
 						close(key);
 					}
-					if(transmissions.send.complete()) {
-						completed.add(transmissions.send);
+					if(transmissions.send.remaining() <= 0) {
+						this.completedSends.add(transmissions.send);
 						transmissions.clearSend();
 						key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
 					}
@@ -145,6 +144,27 @@ public class Selector {
 					close(key);
 			}
 		}
+	}
+	
+	public List<NetworkSend> completedSends() {
+	  return this.completedSends;
+	}
+	
+	public List<NetworkReceive> completedReceives() {
+	  return this.completedReceives;
+	}
+	
+	public List<Integer> disconnected() {
+	  return this.disconnected;
+	}
+	
+	/**
+	 * Clear the results from the prior poll
+	 */
+	private void clear() {
+	  this.completedSends.clear();
+	  this.completedReceives.clear();
+	  this.disconnected.clear();
 	}
 	
 	/**
@@ -164,6 +184,7 @@ public class Selector {
 	
 	private void close(SelectionKey key) throws IOException {
 		SocketChannel channel = channel(key);
+		this.disconnected.add(transmissions(key).id);
 		key.attach(null);
 		key.cancel();
 		channel.socket().close();
@@ -186,8 +207,13 @@ public class Selector {
 	}
 	
 	private static class Transmissions {
-		public Send send;
-		public Receive receive;
+	  public int id;
+		public NetworkSend send;
+		public NetworkReceive receive;
+		
+		public Transmissions(int id) {
+		  this.id = id;
+		}
 		
 		public boolean hasSend() {
 			return this.send != null;

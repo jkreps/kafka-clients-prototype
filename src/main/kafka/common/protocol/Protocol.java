@@ -8,13 +8,15 @@ import kafka.common.protocol.types.Schema;
 public class Protocol {
 	
 	public static Schema REQUEST_HEADER = 
-			new Schema(new Field("api_key", INT16, "The id of the request type."),
-			           new Field("api_version", INT16, "The version of the API."),
-			           new Field("correlation_id", INT32, "A user-supplied integer value that will be passed back with the response"),
-			           new Field("client_id", STRING, "A user specified identifier for the client making the request."));
+	    new Schema(new Field("api_key", INT16, "The id of the request type."),
+                 new Field("api_version", INT16, "The version of the API."),
+                 new Field("correlation_id", INT32, "A user-supplied integer value that will be passed back with the response"),
+                 new Field("client_id", STRING, "A user specified identifier for the client making the request."));
 	
 	public static Schema RESPONSE_HEADER = 
 			new Schema(new Field("correlation_id", INT32, "The user-supplied value passed in with the request"));
+	
+	/* Metadata api */
 	
 	public static Schema METADATA_REQUEST_V0 = 
 			new Schema(new Field("topics", 
@@ -42,15 +44,20 @@ public class Protocol {
 			new Schema(new Field("brokers", new ArrayOf(BROKER), "Host and port information for all brokers."),
 			           new Field("topic_metadata", new ArrayOf(TOPIC_METADATA_V0)));
 	
+	public static Schema[] METADATA_REQUEST = new Schema[] {METADATA_REQUEST_V0};
+  public static Schema[] METADATA_RESPONSE = new Schema[] {METADATA_RESPONSE_V0};
+	
+	/* Produce api */
+	
 	public static Schema TOPIC_PRODUCE_DATA_V0 = 
 			new Schema(new Field("topic_name", STRING),
-					   new Field("data", new ArrayOf(new Schema(new Field("partition", INT32), 
-							                                    new Field("message_set_size", INT32)))));
+					       new Field("data", new ArrayOf(new Schema(new Field("partition", INT32), 
+							                                    new Field("message_set", BYTES)))));
 	
 	public static Schema PRODUCE_REQUEST_V0 = 
 			new Schema(new Field("acks", INT16, "The number of nodes that should replicate the produce before returning. -1 indicates the full ISR."),
 					   new Field("timeout", INT32, "The time to await a response in ms."),
-					   new Field("topic_data", TOPIC_PRODUCE_DATA_V0));
+					   new Field("topic_data", new ArrayOf(TOPIC_PRODUCE_DATA_V0)));
 	
 	public static Schema PRODUCE_RESPONSE_V0 = 
 			new Schema(new Field("responses", 
@@ -60,12 +67,29 @@ public class Protocol {
 					                                    		                         new Field("error_code", INT16),
 					                                    		                         new Field("offset", INT64))))))));
 	
-	public Schema[] METADATA_REQUEST = new Schema[] {METADATA_REQUEST_V0};
-	public Schema[] METADATA_RESPONSE = new Schema[] {METADATA_RESPONSE_V0};
+	public static Schema[] PRODUCE_REQUEST = new Schema[] {PRODUCE_REQUEST_V0};
 	
-	public Schema[] PRODUCE_REQUEST = new Schema[] {PRODUCE_REQUEST_V0};
+	/* an array of all requests and responses with all schema versions */
+	public static Schema[][] REQUESTS = new Schema[ApiKey.MAX_API_KEY][];
+	public static Schema[][] RESPONSES = new Schema[ApiKey.MAX_API_KEY][];
 	
-	public Schema[][] REQUESTS = new Schema[][]{PRODUCE_REQUEST, null, null, METADATA_REQUEST};
+	/* the latest version of each api */
+	public static short[] CURR_VERSION = new short[ApiKey.MAX_API_KEY];
 	
+  static {
+    REQUESTS[ApiKey.PRODUCE.id] = PRODUCE_REQUEST;
+    REQUESTS[ApiKey.FETCH.id] = new Schema[]{};
+    REQUESTS[ApiKey.LIST_OFFSETS.id] = new Schema[]{};
+    REQUESTS[ApiKey.METADATA.id] = METADATA_REQUEST;
+    
+    /* set the maximum version of each api */
+    for(ApiKey api: ApiKey.values())
+      CURR_VERSION[api.id] = (short) REQUESTS[api.id].length;
+    
+    /* sanity check that we have the same number of request and response versions for each api */
+    for(ApiKey api: ApiKey.values())
+      if(REQUESTS[api.id].length != RESPONSES[api.id].length)
+        throw new IllegalStateException(REQUESTS[api.id].length + " request versions for api " + api.name + " but " + RESPONSES[api.id].length + " response versions.");
+  }
 	
 }

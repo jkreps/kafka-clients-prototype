@@ -35,7 +35,7 @@ public class RecordBuffers {
 		this.free = new ArrayBlockingQueue<RecordBuffer>(totalSize / batchSize + 1);
 	}
 	
-	public CountDownLatch append(TopicPartition tp, byte[] key, byte[] value) throws InterruptedException {
+	public RecordSend append(TopicPartition tp, byte[] key, byte[] value, Callback callback) throws InterruptedException {
 		// check if we have an in-progress buffer
 		Deque<RecordBuffer> dq = dequeFor(tp);
 		RecordBuffer buffer = null;
@@ -59,12 +59,12 @@ public class RecordBuffers {
 			
 			// if we got a buffer do the append
 			if(buffer != null) {
-				buffer.append(key, value);
-				return buffer.latch;
+				return buffer.append(key, value, callback);
 			}
 		}
 		
 		// okay we failed to get a buffer without blocking, wait for a buffer to free up
+		// TODO: Support time out
 		buffer = free.take();
 		synchronized(dq) {
 			RecordBuffer first = dq.peekFirst();
@@ -75,10 +75,8 @@ public class RecordBuffers {
 			} else {
 				dq.addFirst(buffer);
 			}
-			buffer.append(key, value);			
+			return buffer.append(key, value, callback);
 		} 
-			
-		return buffer.latch;
 	}
 	
 	public List<TopicPartition> ready(long now) {
@@ -137,6 +135,9 @@ public class RecordBuffers {
 		free.addAll(buffers);
 	}
 	
+	/**
+	 * TODO: rename
+	 */
 	class RecordBuffer {
 		int size = 0;
 		boolean full = false;
@@ -144,22 +145,47 @@ public class RecordBuffers {
 		final CountDownLatch latch;
 		final InMemoryRecords records;
 		final TopicPartition tp;
+		final ProduceRequestResult produceFuture;
+		final List<Thunk> thunks;
 		
 		public RecordBuffer(TopicPartition tp, InMemoryRecords records) {
 			this.begin = System.currentTimeMillis();
 			this.records = records;
 			this.tp = tp;
 			this.latch = new CountDownLatch(1);
+			this.produceFuture = new ProduceRequestResult();
+			this.thunks = new ArrayList<Thunk>(1);
 		}
 
-		public void append(byte[] key, byte[] value) {
-			this.size += 1;
+		/**
+		 * Append the message to the current message set and return the relative offset within that message set
+		 */
+		public RecordSend append(byte[] key, byte[] value, Callback callback) {
 			this.records.append(0L, key, value, CompressionType.NONE);
+			RecordSend send = new RecordSend(this.size++, this.produceFuture);
+			if(callback != null)
+			  thunks.add(new Thunk(callback, send));
+			return send;
 		}
 		
 		public boolean ready(long now) {
 			return full || now - begin > lingerMs;
 		}
+	}
+	
+	final static class Thunk {
+	  final Callback callback;
+	  final RecordSend send;
+	  
+	  public Thunk(Callback callback, RecordSend send) {
+	    this.callback = callback;
+	    this.send = send;
+	  }
+	  
+	  public void execute() {
+	    // TODO: handle exception?
+	    this.callback.onCompletion(this.send);
+	  }
 	}
 	
 }

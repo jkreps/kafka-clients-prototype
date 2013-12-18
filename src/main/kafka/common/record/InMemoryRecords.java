@@ -60,5 +60,11 @@ public class InMemoryRecords {
 	  public void clear() {
 		  buffer.clear();
 	  }
+	  
+	  public ByteBuffer buffer() {
+	    ByteBuffer buffer = this.buffer.duplicate();
+	    buffer.reset();
+	    return buffer;
+	  }
 	
 }

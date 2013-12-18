@@ -1,33 +1,36 @@
 package kafka.common.protocol.types;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A record that can be serialized and deserialized according to a pre-defined schema
  */
-public final class Record {
+public class Struct {
 	private final Schema schema;
 	private final Object[] values;
 	
-	Record(Schema schema, Object[] values) {
+	Struct(Schema schema, Object[] values) {
 		this.schema = schema;
 		this.values = values;
 	}
 	
-	public Record(Schema schema) {
+	public Struct(Schema schema) {
 		this.schema = schema;
 		this.values = new Object[this.schema.numFields()];
 	}
 	
 	/**
-	 * The schema for this record.
+	 * The schema for this struct.
 	 */
 	public Schema schema() {
 		return this.schema;
 	}
 	
 	/**
-	 * Get the record value for the field directly by the field index with no lookup needed (faster!)
+	 * Get the value for the field directly by the field index with no lookup needed (faster!)
 	 * @param field The field to look up
 	 * @return The value for that field.
 	 */
@@ -54,7 +57,7 @@ public final class Record {
 	 * @param field The field
 	 * @param value The value
 	 */
-	public Record set(Field field, Object value) {
+	public Struct set(Field field, Object value) {
 		this.values[field.index] = value;
 		return this;
 	}
@@ -64,7 +67,7 @@ public final class Record {
 	 * @param name The name of the field
 	 * @param value The value to set
 	 */
-	public Record set(String name, Object value) {
+	public Struct set(String name, Object value) {
 		Field field = this.schema.get(name);
 		if(field == null)
 			throw new IllegalArgumentException("Unknown field: " + name);
@@ -78,4 +81,28 @@ public final class Record {
 	public void clear() {
 		Arrays.fill(this.values, null);
 	}
+	
+	/**
+	 * Get the serialized size of this object
+	 */
+	public int sizeOf() {
+	  return this.schema.sizeOf(this);
+	}
+	
+	/**
+	 * Write this struct to a buffer
+	 */
+	public void writeTo(ByteBuffer buffer) {
+	  this.schema.write(buffer, this);
+	}
+	
+	/**
+	 * Create a byte buffer containing the serialized form of the values in this struct. This method can choose to break the struct into multiple ByteBuffers if need be.
+	 */
+	public ByteBuffer[] toBytes() {
+	  ByteBuffer buffer = ByteBuffer.allocate(sizeOf());
+	  writeTo(buffer);
+	  return new ByteBuffer[]{buffer};
+	}
+
 }

@@ -1,0 +1,11 @@
+1. Handle record larger than batch size
+2. SerializingSelector
+3. Matching requests to responses...
+
+Notes
+- Should the client api take objects or bytes?
+
+
+Issues
+- Client-driven topic creation...
+- What if node host/port changes dynamically

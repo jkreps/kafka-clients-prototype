@@ -24,4 +24,8 @@ public class Field {
 		this(name, type, "");
 	}
 	
+	public Type type() {
+	  return type;
+	}
+	
 }

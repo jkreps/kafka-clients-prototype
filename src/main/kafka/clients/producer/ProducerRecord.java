@@ -8,9 +8,9 @@ public class ProducerRecord {
 	private final Object value;
 	
 	public ProducerRecord(String topic, 
-			              Object key, 
-			              Object partitionKey,
-			              Object value) {
+			                  Object key, 
+			                  Object partitionKey,
+			                  Object value) {
 		this.topic = topic;
 		this.key = key;
 		this.partitionKey = partitionKey;

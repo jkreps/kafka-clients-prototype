@@ -76,8 +76,27 @@ public abstract class Type {
 			return Utils.utf8(bytes);
 		}
 		public int sizeOf(Object o) {
-			return 2 + Utils.utf8((String) o).length;
+			return 2 + Utils.utf8Length((String) o);
 		}
+	};
+	
+	public static final Type BYTES = new Type() {
+	  public void write(ByteBuffer buffer, Object o) {
+	    ByteBuffer arg = (ByteBuffer) o;
+	    int pos = arg.position();
+	    buffer.put(arg);
+	    arg.position(pos);
+	  }
+	  public Object read(ByteBuffer buffer) {
+	    ByteBuffer val = buffer.duplicate();
+	    int size = val.getInt();
+	    val.limit(size);
+	    return val;
+	  }
+	  public int sizeOf(Object o) {
+	    ByteBuffer buffer = (ByteBuffer) o;
+	    return buffer.remaining();
+	  }
 	};
 
 }

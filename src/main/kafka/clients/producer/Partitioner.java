@@ -4,6 +4,6 @@ import kafka.common.Cluster;
 
 public interface Partitioner {
 
-	public int partition(Object key, Object value, Cluster cluster);
+	public int partition(Object key, Object value, Cluster cluster, int numPartitions);
 	
 }

@@ -37,4 +37,8 @@ public class ArrayOf extends Type {
 			return 4 + objs.length * type.sizeOf(objs[0]);
 	}
 	
+	public Type type() {
+	  return type;
+	}
+	
 }

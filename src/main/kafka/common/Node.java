@@ -2,6 +2,7 @@ package kafka.common;
 
 public class Node {
 	
+  private int hash;
 	private final int id;
 	private final String host;
 	private final int port;
