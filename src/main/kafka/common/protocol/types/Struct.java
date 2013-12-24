@@ -28,14 +28,28 @@ public class Struct {
 	}
 	
 	/**
+	 * Return the value of the given pre-validated field, or if the value is missing return the default value.
+	 * @param field The field for which to get the default value
+	 * @throws SchemaException if the field has no value and has no default.
+	 */
+	private Object getFieldOrDefault(Field field) {
+	  Object value = this.values[field.index];
+	  if(value != null)
+	    return value;
+	  else if(field.defaultValue != Field.NO_DEFAULT)
+	    return field.defaultValue;
+	  else
+	    throw new SchemaException("Missing value for field '" + field.name + " which has no default value.");
+	}
+	
+	/**
 	 * Get the value for the field directly by the field index with no lookup needed (faster!)
 	 * @param field The field to look up
 	 * @return The value for that field.
 	 */
 	public Object get(Field field) {
-		if(field.index > values.length)
-			throw new IllegalArgumentException("Invalid field index: " + field.index);
-		return this.values[field.index];
+	  validateField(field);
+		return getFieldOrDefault(field);
 	}
 	
 	/**
@@ -46,8 +60,8 @@ public class Struct {
 	public Object get(String name) {
 		Field field = schema.get(name);
 		if(field == null)
-			throw new IllegalArgumentException("No such field: " + name);
-		return this.values[field.index];
+			throw new SchemaException("No such field: " + name);
+		return getFieldOrDefault(field);
 	}
 	
 	public Struct getStruct(Field field) {
@@ -56,6 +70,14 @@ public class Struct {
 	
 	public Struct getStruct(String name) {
 	  return (Struct) get(name);
+	}
+	
+	public Short getShort(Field field) {
+	  return (Short) get(field);
+	}
+	
+	public Short getShort(String name) {
+	  return (Short) get(name);
 	}
 	
 	public Integer getInt(Field field) {
@@ -74,12 +96,21 @@ public class Struct {
 	  return (Object[]) get(name);
 	}
 	
+	public String getString(Field field) {
+	  return (String) get(field);
+	}
+	
+	public String getString(String name) {
+	  return (String) get(name);
+	}
+	
 	/**
 	 * Set the given field to the specified value
 	 * @param field The field
 	 * @param value The value
 	 */
 	public Struct set(Field field, Object value) {
+	  validateField(field);
 		this.values[field.index] = value;
 		return this;
 	}
@@ -92,8 +123,8 @@ public class Struct {
 	public Struct set(String name, Object value) {
 		Field field = this.schema.get(name);
 		if(field == null)
-			throw new IllegalArgumentException("Unknown field: " + name);
-		set(field, value);
+			throw new SchemaException("Unknown field: " + name);
+		this.values[field.index] = value;
 		return this;
 	}
 	
@@ -103,13 +134,14 @@ public class Struct {
 	 * @return The struct
 	 */
 	public Struct instance(Field field) {
+	  validateField(field);
 	  if(field.type() instanceof Schema) {
 	    return new Struct((Schema) field.type());
 	  } else if(field.type() instanceof ArrayOf) {
 	    ArrayOf array = (ArrayOf) field.type();
 	    return new Struct((Schema) array.type());
 	  } else {
-	    throw new IllegalArgumentException("Field " + field.name + " is not a container type, it is of type " + field.type());
+	    throw new SchemaException("Field " + field.name + " is not a container type, it is of type " + field.type());
 	  }
 	}
 	
@@ -144,6 +176,23 @@ public class Struct {
 	}
 	
 	/**
+   * Ensure the user doesn't try to access fields from the wrong schema
+   */
+  private void validateField(Field field) {
+    if(this.schema != field.schema)
+      throw new SchemaException("Attempt to access field '" + field.name + " from a different schema instance.");
+    if(field.index > values.length)
+      throw new SchemaException("Invalid field index: " + field.index);
+  }
+  
+  /**
+   * Validate the contents of this struct against its schema
+   */
+  public void validate() {
+    this.schema.validate(this);
+  }
+	
+	/**
 	 * Create a byte buffer containing the serialized form of the values in this struct. This method can choose to break the struct into multiple ByteBuffers if need be.
 	 */
 	public ByteBuffer[] toBytes() {
@@ -154,7 +203,8 @@ public class Struct {
 	
 	@Override
 	public String toString() {
-	  StringBuilder b = new StringBuilder('{');
+	  StringBuilder b = new StringBuilder();
+	  b.append('{');
 	  for(int i = 0; i < this.values.length; i++) {
 	    b.append(this.schema.get(i).name);
 	    b.append('=');

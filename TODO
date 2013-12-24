@@ -4,8 +4,10 @@
 
 Notes
 - Should the client api take objects or bytes?
+- Partitioner should also take raw bytes
 
 
 Issues
 - Client-driven topic creation...
 - What if node host/port changes dynamically
+- Ensure client shutdown waits on all data being sent

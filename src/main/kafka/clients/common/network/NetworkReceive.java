@@ -1,5 +1,6 @@
 package kafka.clients.common.network;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ScatteringByteChannel;
@@ -35,7 +36,10 @@ public class NetworkReceive implements Receive {
   public int readFrom(ScatteringByteChannel channel) throws IOException {
     int read = 0;
     if(size.hasRemaining()) {
-      read += channel.read(size);
+      int bytesRead = channel.read(size);
+      if(bytesRead < 0)
+        throw new EOFException();
+      read += bytesRead;
       if(!size.hasRemaining()) {
         size.rewind();
         int requestSize = size.getInt();
@@ -44,8 +48,12 @@ public class NetworkReceive implements Receive {
         this.buffer = ByteBuffer.allocate(requestSize);
       }
     }
-    if(buffer != null)
-      read += channel.read(buffer);
+    if(buffer != null) {
+      int bytesRead = channel.read(buffer);
+      if(bytesRead < 0)
+        throw new EOFException();
+      read += bytesRead;
+    }
 
     return read;
   }

@@ -61,14 +61,14 @@ public class ProtoUtils {
     }
     List<PartitionInfo> partitions = new ArrayList<PartitionInfo>();
     for (Struct topicInfo : (Struct[]) response.get("topic_metadata")) {
-      short topicError = (Short) topicInfo.get("topic_error_code");
-      if (topicError == ErrorCodes.NO_ERROR) {
-        String topic = (String) topicInfo.get("topic_name");
+      short topicError = topicInfo.getShort("topic_error_code");
+      if (topicError == Errors.NONE.code()) {
+        String topic = topicInfo.getString("topic_name");
         for (Struct partitionInfo : (Struct[]) topicInfo.get("partition_metadata")) {
-          short partError = (Short) partitionInfo.get("partition_error_code");
-          if (partError == ErrorCodes.NO_ERROR) {
-            int partition = (Integer) partitionInfo.get("partition_id");
-            int leader = (Integer) partitionInfo.get("leader");
+          short partError = partitionInfo.getShort("partition_error_code");
+          if (partError == Errors.NONE.code()) {
+            int partition = partitionInfo.getInt("partition_id");
+            int leader = partitionInfo.getInt("leader");
             int[] replicas = intArray((Integer[]) partitionInfo.get("replicas"));
             int[] isr = intArray((Integer[]) partitionInfo.get("isr"));
             partitions.add(new PartitionInfo(topic, partition, leader,replicas, isr));
@@ -85,4 +85,5 @@ public class ProtoUtils {
       copy[i] = ints[i];
     return copy;
   }
+  
 }

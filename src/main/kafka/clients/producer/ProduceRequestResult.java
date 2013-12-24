@@ -3,17 +3,19 @@ package kafka.clients.producer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import kafka.common.protocol.Errors;
+
 public class ProduceRequestResult {
   
   private final CountDownLatch latch = new CountDownLatch(1);
   private volatile long baseOffset = -1L;
-  private volatile short errorCode = -1;
+  private volatile Errors error;
   
   public ProduceRequestResult() {}
   
   public void done(long baseOffset, short errorCode) {
     this.baseOffset = baseOffset;
-    this.errorCode = errorCode;
+    this.error = Errors.forCode(errorCode);
     this.latch.countDown();
   }
   
@@ -29,7 +31,11 @@ public class ProduceRequestResult {
     return baseOffset;
   }
   
-  public short errorCode() {
-    return errorCode;
+  public Errors error() {
+    return error;
+  }
+  
+  public boolean completed() {
+    return this.latch.getCount() == 0L;
   }
 }

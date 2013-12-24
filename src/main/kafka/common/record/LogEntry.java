@@ -1,11 +1,11 @@
 package kafka.common.record;
 
-public class LogEntry {
+public final class LogEntry {
 	
 	private final long offset;
-	private final LogRecord record;
+	private final Record record;
 	
-	public LogEntry(long offset, LogRecord record) {
+	public LogEntry(long offset, Record record) {
 		this.offset = offset;
 		this.record = record;
 	}
@@ -14,7 +14,12 @@ public class LogEntry {
 		return this.offset;
 	}
 	
-	public LogRecord record() {
+	public Record record() {
 		return this.record;
+	}
+	
+	@Override
+	public String toString() {
+	  return "LogEntry(" + offset + ", " + record + ")";
 	}
 }

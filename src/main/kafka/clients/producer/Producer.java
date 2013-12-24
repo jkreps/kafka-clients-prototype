@@ -1,5 +1,8 @@
 package kafka.clients.producer;
 
+/**
+ * A Kafka producer that can be used to send records to the cluster.
+ */
 public interface Producer {
 
   /**

@@ -4,7 +4,7 @@ import static kafka.common.protocol.Protocol.REQUEST_HEADER;
 
 import java.nio.ByteBuffer;
 
-import kafka.common.protocol.ApiKey;
+import kafka.common.protocol.ApiKeys;
 import kafka.common.protocol.ProtoUtils;
 import kafka.common.protocol.Protocol;
 import kafka.common.protocol.types.Field;

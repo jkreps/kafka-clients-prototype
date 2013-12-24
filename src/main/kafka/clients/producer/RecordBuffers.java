@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
-import kafka.common.record.InMemoryRecords;
+import kafka.common.record.MemoryRecords;
 
 /**
  * A collection of queues that maintain a global size across all the queues. When this size reaches a maximum new adds block.
@@ -118,7 +118,7 @@ public class RecordBuffers {
 				return null;
 			boolean set = remainingMemory.compareAndSet(remaining, remaining - size);
 			if(set)
-				return new RecordBuffer(tp, new InMemoryRecords(size));
+				return new RecordBuffer(tp, new MemoryRecords(size));
 		}
 	}
 	
@@ -143,12 +143,12 @@ public class RecordBuffers {
 		boolean full = false;
 		final long begin;
 		final CountDownLatch latch;
-		final InMemoryRecords records;
+		final MemoryRecords records;
 		final TopicPartition tp;
 		final ProduceRequestResult produceFuture;
 		final List<Thunk> thunks;
 		
-		public RecordBuffer(TopicPartition tp, InMemoryRecords records) {
+		public RecordBuffer(TopicPartition tp, MemoryRecords records) {
 			this.begin = System.currentTimeMillis();
 			this.records = records;
 			this.tp = tp;

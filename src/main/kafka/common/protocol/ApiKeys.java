@@ -3,7 +3,7 @@ package kafka.common.protocol;
 /**
  * Identifiers for all the Kafka APIs
  */
-public enum ApiKey {
+public enum ApiKeys {
   PRODUCE(0, "produce"),
   FETCH(1, "fetch"),
   LIST_OFFSETS(2, "list_offsets"),
@@ -16,7 +16,7 @@ public enum ApiKey {
   public static int MAX_API_KEY = 0;
     
   static {
-    for(ApiKey key: ApiKey.values()) {
+    for(ApiKeys key: ApiKeys.values()) {
       MAX_API_KEY = Math.max(MAX_API_KEY, key.id);
     }
   }
@@ -27,7 +27,7 @@ public enum ApiKey {
   /** an english description of the api--this is for debugging and can change */
   public final String name;
   
-  private ApiKey(int id, String name) {
+  private ApiKeys(int id, String name) {
     this.id = (short) id;
     this.name = name;
   }

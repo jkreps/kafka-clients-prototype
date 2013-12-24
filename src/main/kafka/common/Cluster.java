@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import kafka.common.utils.Utils;
 
-public class Cluster {
+public final class Cluster {
   private final AtomicInteger counter = new AtomicInteger(0);
   private final List<Node> nodes;
 	private final Map<Integer, Node> nodesById;

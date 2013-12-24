@@ -10,6 +10,10 @@ import kafka.common.Serializer;
 import kafka.common.StringSerialization;
 import kafka.common.TopicPartition;
 
+/**
+ * A Kafka producer that can be used to send data to the Kafka cluster. The producer
+ * is thread safe and should be shared among all threads for best performance.
+ */
 public class KafkaProducer implements Producer {
   
   private final Partitioner partitioner = new DefaultPartitioner(); // TODO: should be pluggable
@@ -32,7 +36,7 @@ public class KafkaProducer implements Producer {
         if(pieces.length != 2)
           throw new IllegalArgumentException("Invalid url in metadata.broker.list: " + url);
         try {
-          // TODO: This actually does DNS resolution, which is a little weird
+          // TODO: This actually does DNS resolution (?), which is a little weird
           addresses.add(new InetSocketAddress(pieces[0], Integer.parseInt(pieces[1])));
         } catch(NumberFormatException e) {
           throw new IllegalArgumentException("Invalid port in metadata.broker.list: " + url);
@@ -52,7 +56,9 @@ public class KafkaProducer implements Producer {
   @Override
   public RecordSend send(ProducerRecord record, Callback callback) {
     Cluster cluster = metadata.fetch(record.topic());
-    int partition = partitioner.partition(record.key(), record.value(), cluster, cluster.partitionsFor(record.topic()).size());
+    int partition = partitioner.partition(record, 
+                                          cluster, 
+                                          cluster.partitionsFor(record.topic()).size());
     byte[] key = keySerializer.toBytes(record.key());
     byte[] value = valSerializer.toBytes(record.value());
     try {

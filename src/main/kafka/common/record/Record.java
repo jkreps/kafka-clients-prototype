@@ -4,49 +4,49 @@ import java.nio.ByteBuffer;
 
 import kafka.common.utils.Utils;
 
-public class LogRecord {
+public final class Record {
 
 	  /**
 	   * The current offset and size for all the fixed-length fields
 	   */
-	  public static final int CrcOffset = 0;
-	  public static final int CrcLength = 4;
-	  public static final int MagicOffset = CrcOffset + CrcLength;
-	  public static final int MagicLength = 1;
-	  public static final int AttributesOffset = MagicOffset + MagicLength;
-	  public static final int AttributesLength = 1;
-	  public static final int KeySizeOffset = AttributesOffset + AttributesLength;
-	  public static final int KeySizeLength = 4;
-	  public static final int KeyOffset = KeySizeOffset + KeySizeLength;
-	  public static final int ValueSizeLength = 4;
+	  public static final int CRC_OFFSET = 0;
+	  public static final int CRC_LENGTH = 4;
+	  public static final int MAGIC_OFFSET = CRC_OFFSET + CRC_LENGTH;
+	  public static final int MAGIC_LENGTH = 1;
+	  public static final int ATTRIBUTES_OFFSET = MAGIC_OFFSET + MAGIC_LENGTH;
+	  public static final int ATTRIBUTE_LENGTH = 1;
+	  public static final int KEY_SIZE_OFFSET = ATTRIBUTES_OFFSET + ATTRIBUTE_LENGTH;
+	  public static final int KEY_SIZE_LENGTH = 4;
+	  public static final int KEY_OFFSET = KEY_SIZE_OFFSET + KEY_SIZE_LENGTH;
+	  public static final int VALUE_SIZE_LENGTH = 4;
 	  
 	  /** The amount of overhead bytes in a record */
-	  public static final int RECORD_OVERHEAD = KeyOffset + ValueSizeLength;
+	  public static final int RECORD_OVERHEAD = KEY_OFFSET + VALUE_SIZE_LENGTH;
 	  
 	  /**
 	   * The minimum valid size for the record header
 	   */
-	  public static final int MinHeaderSize = CrcLength + MagicLength + AttributesLength + KeySizeLength + ValueSizeLength;
+	  public static final int MinHeaderSize = CRC_LENGTH + MAGIC_LENGTH + ATTRIBUTE_LENGTH + KEY_SIZE_LENGTH + VALUE_SIZE_LENGTH;
 	  
 	  /**
 	   * The current "magic" value
 	   */
-	  public static final byte CurrentMagicValue = 0;
+	  public static final byte CURRENT_MAGIC_VALUE = 0;
 
 	  /**
 	   * Specifies the mask for the compression code. 2 bits to hold the compression codec.
 	   * 0 is reserved to indicate no compression
 	   */
-	  public static final int CompressionCodeMask = 0x03; 
+	  public static final int COMPRESSION_CODEC_MASK = 0x03; 
 
 	  /**
 	   * Compression code for uncompressed records
 	   */
-	  public static final int NoCompression = 0;
+	  public static final int NO_COMPRESSION = 0;
 	  
 	  private final ByteBuffer buffer;
 	  
-	  public LogRecord(ByteBuffer buffer) {
+	  public Record(ByteBuffer buffer) {
 		  this.buffer = buffer;
 	  }
 	  
@@ -58,30 +58,30 @@ public class LogRecord {
 	   * @param valueOffset The offset into the payload array used to extract payload
 	   * @param valueSize The size of the payload to use
 	   */
-	  public LogRecord(byte[] key, 
+	  public Record(byte[] key, 
 			           byte[] value,            
 			           CompressionType codec, 
 			           int valueOffset, 
 	                   int valueSize) {
 	    this(ByteBuffer.allocate(recordSize(key == null? 0: key.length, 
-	    		                            valueSize >= 0? valueSize : value.length - valueOffset)));
+	    		                            value == null? 0 : valueSize >= 0? valueSize : value.length - valueOffset)));
 	    write(this.buffer, key, value, codec, valueOffset, valueSize);
-	    this.buffer.reset();
+	    this.buffer.rewind();
 	  }
 	  
-	  public LogRecord(byte[] key, byte[] value, CompressionType codec) {
+	  public Record(byte[] key, byte[] value, CompressionType codec) {
 	    this(key, value, codec, 0, -1);
 	  }
 	  
-	  public LogRecord(byte[] value, CompressionType codec) {
+	  public Record(byte[] value, CompressionType codec) {
 	    this(null, value, codec);
 	  }
 	  
-	  public LogRecord(byte[] key, byte[] value) {
+	  public Record(byte[] key, byte[] value) {
 	    this(key, value, CompressionType.NONE);
 	  }
 	    
-	  public LogRecord(byte[] value) {
+	  public Record(byte[] value) {
 	    this(null, value, CompressionType.NONE);
 	  }
 	  
@@ -93,33 +93,39 @@ public class LogRecord {
                                int valueSize) {
 		    // skip crc, we will fill that in at the end
 		  int pos = buffer.position();
-		    buffer.position(pos + MagicOffset);
-		    buffer.put(CurrentMagicValue);
+		    buffer.position(pos + MAGIC_OFFSET);
+		    buffer.put(CURRENT_MAGIC_VALUE);
 		    byte attributes = 0;
 		    if (codec.id > 0)
-		      attributes =  (byte) (attributes | (CompressionCodeMask & codec.id));
+		      attributes =  (byte) (attributes | (COMPRESSION_CODEC_MASK & codec.id));
 		    buffer.put(attributes);
+		    // write the key
 		    if (key == null) {
 		      buffer.putInt(-1);
 		    } else {
 		      buffer.putInt(key.length);
 		      buffer.put(key, 0, key.length);
 		    }
-		    int size = (valueSize >= 0)? valueSize : (value.length - valueOffset);
-		    buffer.putInt(size);
-		    buffer.put(value, valueOffset, size);
+		    // write the value
+		    if(value == null) {
+		      buffer.putInt(-1);
+		    } else {
+	        int size = valueSize >= 0? valueSize : (value.length - valueOffset);
+	        buffer.putInt(size);
+    		  buffer.put(value, valueOffset, size);
+		    }
 		    
 		    // now compute the checksum and fill it in
-		    long crc = computeChecksum(buffer, buffer.arrayOffset() + MagicOffset, buffer.limit() - MagicOffset);
-		    Utils.writeUnsignedInt(buffer, pos + CrcOffset, crc);
+		    long crc = computeChecksum(buffer, buffer.arrayOffset() + pos + MAGIC_OFFSET, buffer.position() - pos - MAGIC_OFFSET - buffer.arrayOffset());
+		    Utils.writeUnsignedInt(buffer, pos + CRC_OFFSET, crc);
 	  }
 	  
 	  public static void write(ByteBuffer buffer, byte[] key, byte[] value, CompressionType codec) {
-		  write(buffer, key, value, codec, 0, value.length);
+		  write(buffer, key, value, codec, 0, -1);
 	  }
 	  
 	  public static int recordSize(int keySize, int valueSize) {
-		  return CrcLength + MagicLength + AttributesLength + KeySizeLength + keySize + ValueSizeLength + valueSize;
+		  return CRC_LENGTH + MAGIC_LENGTH + ATTRIBUTE_LENGTH + KEY_SIZE_LENGTH + keySize + VALUE_SIZE_LENGTH + valueSize;
 	  }
 	  
 	  public ByteBuffer buffer() {
@@ -129,22 +135,22 @@ public class LogRecord {
 	  /**
 	   * Compute the checksum of the record from the record contents
 	   */
-	  public static long computeChecksum(ByteBuffer buffer, int position, int limit) { 
-	    return Utils.crc32(buffer.array(), buffer.arrayOffset() + position + MagicOffset,  limit - MagicOffset);
+	  public static long computeChecksum(ByteBuffer buffer, int position, int size) { 
+	    return Utils.crc32(buffer.array(), buffer.arrayOffset() + position,  size - buffer.arrayOffset());
 	  }
 	  
 	  /**
 	   * Compute the checksum of the record from the record contents
 	   */
 	  public long computeChecksum() {
-		  return computeChecksum(buffer, 0, buffer.limit());
+		  return computeChecksum(buffer, MAGIC_OFFSET, buffer.limit() - MAGIC_OFFSET);
 	  }
 	  
 	  /**
 	   * Retrieve the previously computed CRC for this record
 	   */
 	  public long checksum() {
-		  return Utils.readUnsignedInt(buffer, CrcOffset);
+		  return Utils.readUnsignedInt(buffer, CRC_OFFSET);
 	  }
 	  
 	    /**
@@ -173,7 +179,7 @@ public class LogRecord {
 	   * The length of the key in bytes
 	   */
 	  public int keySize() {
-		  return buffer.getInt(KeySizeOffset);
+		  return buffer.getInt(KEY_SIZE_OFFSET);
 	  }
 	  
 	  /**
@@ -187,7 +193,7 @@ public class LogRecord {
 	   * The position where the value size is stored
 	   */
 	  private int valueSizeOffset() {
-		  return KeyOffset + Math.max(0, keySize());
+		  return KEY_OFFSET + Math.max(0, keySize());
 	  }
 	  
 	  /**
@@ -201,21 +207,21 @@ public class LogRecord {
 	   * The magic version of this record
 	   */
 	  public byte magic() { 
-		  return buffer.get(MagicOffset);
+		  return buffer.get(MAGIC_OFFSET);
 	  }
 	  
 	  /**
 	   * The attributes stored with this record
 	   */
 	  public byte attributes() {
-		  return buffer.get(AttributesOffset);
+		  return buffer.get(ATTRIBUTES_OFFSET);
 	  }
 	  
 	  /**
 	   * The compression codec used with this record
 	   */
 	  public CompressionType compressionType() {
-		  return CompressionType.forId(buffer.get(AttributesOffset) & CompressionCodeMask);
+		  return CompressionType.forId(buffer.get(ATTRIBUTES_OFFSET) & COMPRESSION_CODEC_MASK);
 	  }
 	  
 	  /**
@@ -229,7 +235,7 @@ public class LogRecord {
 	   * A ByteBuffer containing the message key
 	   */
 	  public ByteBuffer key() {
-		  return sliceDelimited(KeySizeOffset);
+		  return sliceDelimited(KEY_SIZE_OFFSET);
 	  }
 	  
 	  /**
@@ -250,7 +256,7 @@ public class LogRecord {
 	  }
 
 	  public String toString() {
-	    return String.format("Message(magic = %d, attributes = %d, crc = %d, key = %s, payload = %s)", magic(), attributes(), checksum(), key(), value());
+	    return String.format("Message(magic = %d, attributes = %d, crc = %d, key = %d bytes, value = %d bytes)", magic(), attributes(), checksum(), key().limit(), value().limit());
 	  }
 	  
 	  public boolean equals(Object other) {
@@ -258,9 +264,9 @@ public class LogRecord {
 			  return true;
 		  if(other == null)
 			  return false;
-		  if(!other.getClass().equals(LogRecord.class))
+		  if(!other.getClass().equals(Record.class))
 			  return false;
-		  LogRecord record = (LogRecord) other;
+		  Record record = (Record) other;
 		  return this.buffer.equals(record.buffer);
 	  }
 	  

@@ -18,20 +18,31 @@ public class Schema extends Type {
 		for(int i = 0; i < this.fields.length; i++) {
 			Field field = fs[i];
 			if(fieldsByName.containsKey(field.name))
-				throw new IllegalArgumentException("Schema contains a duplicate field: " + field.name);
-			this.fields[i] = new Field(i, field.name, field.type, field.doc);
+				throw new SchemaException("Schema contains a duplicate field: " + field.name);
+			this.fields[i] = new Field(i, field.name, field.type, field.doc, field.defaultValue, this);
 			this.fieldsByName.put(fs[i].name, this.fields[i]);
 		}
 	}
-    
+  
+	/**
+	 * Write a struct to the buffer
+	 */
 	public void write(ByteBuffer buffer, Object o) {
     	Struct r = (Struct) o;
     	for(int i = 0; i < fields.length; i++) {
     		Field f = fields[i];
-    		f.type.write(buffer, r.get(f));
+    		try {
+      		Object value = validate(r.get(f));
+    	  	f.type.write(buffer, value);
+    		} catch(Exception e) {
+    		  throw new SchemaException("Error writing field '" + f.name + "': " + e.getMessage());
+    		}
     	}
     }
 	
+	/**
+	 * Read a struct from the buffer
+	 */
 	public Object read(ByteBuffer buffer) {
     	Object[] objects = new Object[fields.length];
     	for(int i = 0; i < fields.length; i++)
@@ -76,16 +87,45 @@ public class Schema extends Type {
 	}
 	
 	/**
+	 * Get all the fields in this schema
+	 */
+	public Field[] fields() {
+	  return this.fields;
+	}
+	
+	/**
 	 * Display a string representation of the schema
 	 */
 	public String toString() {
 	  StringBuilder b = new StringBuilder();
+	  b.append('{');
 	  for(int i = 0; i < this.fields.length; i++) {
 	    b.append(this.fields[i].name);
 	    b.append(':');
 	    b.append(this.fields[i].type());
+	    if(i < this.fields.length - 1)
+	      b.append(',');
 	  }
+	  b.append("}");
 	  return b.toString();
 	}
+	
+  @Override
+  public Struct validate(Object item) {
+    try {
+      Struct struct = (Struct) item;
+      for(int i = 0; i < this.fields.length; i++) {
+        Field field = this.fields[i];
+        try {
+          field.type.validate(struct.get(field));
+        } catch(SchemaException e) {
+          throw new SchemaException("Invalid value for field '" + field.name + "': " + e.getMessage());
+        }
+      }
+      return struct;
+    } catch(ClassCastException e) {
+      throw new SchemaException("Not a Struct.");
+    }
+  }
 	
 }

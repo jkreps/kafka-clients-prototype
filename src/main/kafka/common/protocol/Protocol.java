@@ -70,24 +70,24 @@ public class Protocol {
 	public static Schema[] PRODUCE_REQUEST = new Schema[] {PRODUCE_REQUEST_V0};
 	
 	/* an array of all requests and responses with all schema versions */
-	public static Schema[][] REQUESTS = new Schema[ApiKey.MAX_API_KEY][];
-	public static Schema[][] RESPONSES = new Schema[ApiKey.MAX_API_KEY][];
+	public static Schema[][] REQUESTS = new Schema[ApiKeys.MAX_API_KEY][];
+	public static Schema[][] RESPONSES = new Schema[ApiKeys.MAX_API_KEY][];
 	
 	/* the latest version of each api */
-	public static short[] CURR_VERSION = new short[ApiKey.MAX_API_KEY];
+	public static short[] CURR_VERSION = new short[ApiKeys.MAX_API_KEY];
 	
   static {
-    REQUESTS[ApiKey.PRODUCE.id] = PRODUCE_REQUEST;
-    REQUESTS[ApiKey.FETCH.id] = new Schema[]{};
-    REQUESTS[ApiKey.LIST_OFFSETS.id] = new Schema[]{};
-    REQUESTS[ApiKey.METADATA.id] = METADATA_REQUEST;
+    REQUESTS[ApiKeys.PRODUCE.id] = PRODUCE_REQUEST;
+    REQUESTS[ApiKeys.FETCH.id] = new Schema[]{};
+    REQUESTS[ApiKeys.LIST_OFFSETS.id] = new Schema[]{};
+    REQUESTS[ApiKeys.METADATA.id] = METADATA_REQUEST;
     
     /* set the maximum version of each api */
-    for(ApiKey api: ApiKey.values())
+    for(ApiKeys api: ApiKeys.values())
       CURR_VERSION[api.id] = (short) REQUESTS[api.id].length;
     
     /* sanity check that we have the same number of request and response versions for each api */
-    for(ApiKey api: ApiKey.values())
+    for(ApiKeys api: ApiKeys.values())
       if(REQUESTS[api.id].length != RESPONSES[api.id].length)
         throw new IllegalStateException(REQUESTS[api.id].length + " request versions for api " + api.name + " but " + RESPONSES[api.id].length + " response versions.");
   }

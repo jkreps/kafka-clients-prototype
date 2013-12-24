@@ -13,15 +13,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import kafka.clients.common.network.IoSelector;
+import kafka.clients.common.network.Selectable;
 import kafka.clients.common.network.NetworkReceive;
 import kafka.clients.common.network.NetworkSend;
 import kafka.clients.common.network.Send;
 import kafka.common.Cluster;
 import kafka.common.Node;
 import kafka.common.TopicPartition;
-import kafka.common.protocol.ApiKey;
-import kafka.common.protocol.ErrorCodes;
+import kafka.common.protocol.ApiKeys;
+import kafka.common.protocol.Errors;
 import kafka.common.protocol.ProtoUtils;
 import kafka.common.protocol.types.ArrayOf;
 import kafka.common.protocol.types.Schema;
@@ -48,7 +48,7 @@ public class Sender implements Runnable {
 	
 	private final Map<Integer, NodeState> nodeState;
 	private final RecordBuffers buffers;
-	private final IoSelector selector;
+	private final Selectable selector;
 	private final String clientId;
 	private final int maxBatchSize;
 	private final long lingerMs;
@@ -61,7 +61,7 @@ public class Sender implements Runnable {
 	private int correlation = 0;
 	private volatile boolean running;
 
-	public Sender(IoSelector selector,
+	public Sender(Selectable selector,
 	              Metadata metadata,
 			          RecordBuffers buffers,
 			          String clientId,
@@ -158,9 +158,9 @@ public class Sender implements Runnable {
       short apiKey = req.request.header().apiKey();
       Struct body = (Struct) ProtoUtils.currentRequestSchema(apiKey).read(receive.payload());
       correlate(req.request.header(), header);
-      if(req.request.header().apiKey() == ApiKey.PRODUCE.id)
+      if(req.request.header().apiKey() == ApiKeys.PRODUCE.id)
         handleProduceResponse(req, body);
-      else if(req.request.header().apiKey() == ApiKey.METADATA.id)
+      else if(req.request.header().apiKey() == ApiKeys.METADATA.id)
         handleMetadataResponse(body, now);
       else
         throw new IllegalStateException("Unexpected response type: " + req.request.header().apiKey());
@@ -172,7 +172,7 @@ public class Sender implements Runnable {
   	  for(InFlightRequest request: this.inFlightRequests.clearAll(node)) {
   	    if(request.buffers != null) {
   	      for(RecordBuffer buffer: request.buffers.values())
-  	        buffer.produceFuture.done(-1L, ErrorCodes.SERVER_DISCONNECTED);
+  	        buffer.produceFuture.done(-1L, Errors.NETWORK_EXCEPTION.code());
   	    }
   	  }
 	  }
@@ -204,10 +204,10 @@ public class Sender implements Runnable {
 	private InFlightRequest metadataRequest(Set<String> topics) {
 	  String[] ts = new String[topics.size()];
 	  topics.toArray(ts);
-	  Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKey.METADATA.id));
+	  Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.METADATA.id));
 	  body.set("topics", topics);
 	  int node = cluster.nextNode().id();
-	  RequestSend send = new RequestSend(node, new RequestHeader(ApiKey.METADATA.id, clientId, correlation++), body);
+	  RequestSend send = new RequestSend(node, new RequestHeader(ApiKeys.METADATA.id, clientId, correlation++), body);
 	  return new InFlightRequest(send, null);
 	}
 	
@@ -241,7 +241,7 @@ public class Sender implements Runnable {
 	    }
 	    found.add(buffer);
 	  }
-	  Struct produce = new Struct(ProtoUtils.currentRequestSchema(ApiKey.PRODUCE.id));
+	  Struct produce = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.PRODUCE.id));
 	  produce.set("acks", acks);
 	  produce.set("timeout", timeout);
 	  List<Struct> topicDatas = new ArrayList<Struct>(buffersByTopic.size());
@@ -261,7 +261,7 @@ public class Sender implements Runnable {
 	  }
 	  produce.set("topic_data", topicDatas);
 	  
-	  RequestHeader header = new RequestHeader(ApiKey.PRODUCE.id, clientId, correlation++);
+	  RequestHeader header = new RequestHeader(ApiKeys.PRODUCE.id, clientId, correlation++);
 	  RequestSend send = new RequestSend(destination, header, produce);
 	  return new InFlightRequest(send, buffersByPartition);
 	}

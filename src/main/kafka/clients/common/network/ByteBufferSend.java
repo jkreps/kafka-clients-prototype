@@ -1,5 +1,6 @@
 package kafka.clients.common.network;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
@@ -41,6 +42,8 @@ public class ByteBufferSend implements Send {
   @Override
   public long writeTo(GatheringByteChannel channel) throws IOException {
     long written = channel.write(buffers);
+    if(written < 0)
+      throw new EOFException("This shouldn't happen.");
     remaining -= written;
     return  written;
   }
