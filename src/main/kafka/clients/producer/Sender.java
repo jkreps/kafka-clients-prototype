@@ -5,7 +5,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -16,41 +15,30 @@ import java.util.Set;
 import kafka.clients.common.network.Selectable;
 import kafka.clients.common.network.NetworkReceive;
 import kafka.clients.common.network.NetworkSend;
-import kafka.clients.common.network.Send;
 import kafka.common.Cluster;
 import kafka.common.Node;
 import kafka.common.TopicPartition;
+import kafka.common.errors.NetworkException;
 import kafka.common.protocol.ApiKeys;
 import kafka.common.protocol.Errors;
 import kafka.common.protocol.ProtoUtils;
-import kafka.common.protocol.types.ArrayOf;
-import kafka.common.protocol.types.Schema;
 import kafka.common.protocol.types.Struct;
 import kafka.common.requests.RequestHeader;
 import kafka.common.requests.RequestSend;
 import kafka.common.requests.ResponseHeader;
-import kafka.clients.producer.RecordBuffers.RecordBuffer;
 
 /**
- * Partition states: RESOLVING, CONNECTING, CONNECTED
- *
+ * A thread that sends the produce requests
  */
 public class Sender implements Runnable {
 	
 	private static enum NodeState {CONNECTING, CONNECTED}
 	
-	private static Comparator<RecordBuffer> TOPIC_COMPARATOR = new Comparator<RecordBuffer>() {
-    @Override
-    public int compare(RecordBuffer b1, RecordBuffer b2) {
-      return b1.tp.topic().compareTo(b2.tp.topic());
-    }
-  };
-	
 	private final Map<Integer, NodeState> nodeState;
-	private final RecordBuffers buffers;
+	private final RecordAccumulator accumulator;
 	private final Selectable selector;
 	private final String clientId;
-	private final int maxBatchSize;
+	private final int maxRequestSize;
 	private final long lingerMs;
 	private final short acks;
 	private final int requestTimeout;
@@ -63,16 +51,16 @@ public class Sender implements Runnable {
 
 	public Sender(Selectable selector,
 	              Metadata metadata,
-			          RecordBuffers buffers,
+			          RecordAccumulator accumulator,
 			          String clientId,
-			          int maxBatchSize, 
+			          int maxRequestSize, 
 			          long lingerMs,
 			          short acks,
 			          int requestTimeout) {
 		this.nodeState = new HashMap<Integer, NodeState>();
-		this.buffers = buffers;
+		this.accumulator = accumulator;
 		this.selector = selector;
-		this.maxBatchSize = maxBatchSize;
+		this.maxRequestSize = maxRequestSize;
 		this.lingerMs = lingerMs;
 		this.cluster = Cluster.empty();
 		this.metadata = metadata;
@@ -94,7 +82,7 @@ public class Sender implements Runnable {
 			// ready partitions - in flight or blacklisted partitions
 			long now = System.currentTimeMillis();
 			boolean fetchMetadata = false;
-			List<TopicPartition> ready = this.buffers.ready(now);
+			List<TopicPartition> ready = this.accumulator.ready(now);
 			
 			// prune the list of ready topics to eliminate any that we aren't ready to process yet
 			Iterator<TopicPartition> iter = ready.iterator();
@@ -134,8 +122,8 @@ public class Sender implements Runnable {
 			}
 			
 			// create produce requests
-			List<RecordBuffer> buffers = this.buffers.drain(ready);
-			collate(cluster, buffers, sends);
+			List<RecordBatch> batches = this.accumulator.drain(ready, this.maxRequestSize);
+			collate(cluster, batches, sends);
 			
 			// do the I/O
 			try {
@@ -170,9 +158,9 @@ public class Sender implements Runnable {
 	private void handleDisconnects(List<Integer> disconnects) {
 	  for(int node: disconnects) {
   	  for(InFlightRequest request: this.inFlightRequests.clearAll(node)) {
-  	    if(request.buffers != null) {
-  	      for(RecordBuffer buffer: request.buffers.values())
-  	        buffer.produceFuture.done(-1L, Errors.NETWORK_EXCEPTION.code());
+  	    if(request.batches != null) {
+  	      for(RecordBatch batch: request.batches.values())
+  	        batch.done(-1L, new NetworkException("The server disconnected unexpectedly without sending a response."));
   	    }
   	  }
 	  }
@@ -190,8 +178,8 @@ public class Sender implements Runnable {
 	      int partition = (Integer) partResponse.get("partition");
 	      short errorCode = (Short) partResponse.get("error_code");
 	      long offset = (Long) partResponse.get("offset");
-	      RecordBuffer buffer = request.buffers.get(new TopicPartition(topic, partition));
-	      buffer.produceFuture.done(offset, errorCode);
+	      RecordBatch batch = request.batches.get(new TopicPartition(topic, partition));
+	      batch.done(offset, Errors.forCode(errorCode).exception());
 	    }
 	  }
 	}
@@ -211,49 +199,49 @@ public class Sender implements Runnable {
 	  return new InFlightRequest(send, null);
 	}
 	
-	private void collate(Cluster cluster, List<RecordBuffer> buffers, List<NetworkSend> sends) {
-	  Map<Integer, List<RecordBuffer>> collated = new HashMap<Integer, List<RecordBuffer>>();
-		for(RecordBuffer buffer: buffers) {
-		  Node node = cluster.leaderFor(buffer.tp);
-		  List<RecordBuffer> found = collated.get(node.id());
+	private void collate(Cluster cluster, List<RecordBatch> batches, List<NetworkSend> sends) {
+	  Map<Integer, List<RecordBatch>> collated = new HashMap<Integer, List<RecordBatch>>();
+		for(RecordBatch batch: batches) {
+		  Node node = cluster.leaderFor(batch.topicPartition);
+		  List<RecordBatch> found = collated.get(node.id());
 		  if(found == null) {
-		    found = new ArrayList<RecordBuffer>();
+		    found = new ArrayList<RecordBatch>();
 		    collated.put(node.id(), found);
 		  }
-		  found.add(buffer); 
+		  found.add(batch); 
 		}
-		for(Map.Entry<Integer, List<RecordBuffer>> entry: collated.entrySet()) {
+		for(Map.Entry<Integer, List<RecordBatch>> entry: collated.entrySet()) {
 		  InFlightRequest request = produceRequest(entry.getKey(), acks, requestTimeout, entry.getValue());
 		  sends.add(request.request);
 		  this.inFlightRequests.add(request);
 		}
 	}
 	
-	private InFlightRequest produceRequest(int destination, short acks, int timeout, List<RecordBuffer> buffers) {
-	  Map<TopicPartition, RecordBuffer> buffersByPartition = new HashMap<TopicPartition, RecordBuffer>();
-	  Map<String, List<RecordBuffer>> buffersByTopic = new HashMap<String, List<RecordBuffer>>();
-	  for(RecordBuffer buffer: buffers) {
-	    buffersByPartition.put(buffer.tp, buffer);
-	    List<RecordBuffer> found = buffersByTopic.get(buffer.tp.topic());
+	private InFlightRequest produceRequest(int destination, short acks, int timeout, List<RecordBatch> batches) {
+	  Map<TopicPartition, RecordBatch> batchesByPartition = new HashMap<TopicPartition, RecordBatch>();
+	  Map<String, List<RecordBatch>> batchesByTopic = new HashMap<String, List<RecordBatch>>();
+	  for(RecordBatch batch: batches) {
+	    batchesByPartition.put(batch.topicPartition, batch);
+	    List<RecordBatch> found = batchesByTopic.get(batch.topicPartition.topic());
 	    if(found == null) {
-	      found = new ArrayList<RecordBuffer>();
-	      buffersByTopic.put(buffer.tp.topic(), found); 
+	      found = new ArrayList<RecordBatch>();
+	      batchesByTopic.put(batch.topicPartition.topic(), found); 
 	    }
-	    found.add(buffer);
+	    found.add(batch);
 	  }
 	  Struct produce = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.PRODUCE.id));
 	  produce.set("acks", acks);
 	  produce.set("timeout", timeout);
-	  List<Struct> topicDatas = new ArrayList<Struct>(buffersByTopic.size());
-	  for(Map.Entry<String, List<RecordBuffer>> entry: buffersByTopic.entrySet()) {
+	  List<Struct> topicDatas = new ArrayList<Struct>(batchesByTopic.size());
+	  for(Map.Entry<String, List<RecordBatch>> entry: batchesByTopic.entrySet()) {
 	    Struct topicData = produce.instance("topic_data");
 	    topicData.set("topic_name", entry.getKey());
 	    List<Struct> partitionData = new ArrayList<Struct>();
-	    for(RecordBuffer buffer: entry.getValue()) {
+	    for(RecordBatch batch: entry.getValue()) {
 	      Struct part = 
 	          topicData.instance("data")
-	                   .set("partition", buffer.tp.partition())
-	                   .set("message_set", buffer.records.buffer());
+	                   .set("partition", batch.topicPartition.partition())
+	                   .set("message_set", batch.records.buffer());
  	      partitionData.add(part);
 	    }
 	    topicData.set("topic_data", partitionData);
@@ -263,7 +251,7 @@ public class Sender implements Runnable {
 	  
 	  RequestHeader header = new RequestHeader(ApiKeys.PRODUCE.id, clientId, correlation++);
 	  RequestSend send = new RequestSend(destination, header, produce);
-	  return new InFlightRequest(send, buffersByPartition);
+	  return new InFlightRequest(send, batchesByPartition);
 	}
 	
 	void wakeup() {
@@ -271,11 +259,11 @@ public class Sender implements Runnable {
 	}
 	
 	private class InFlightRequest {
-	  public Map<TopicPartition, RecordBuffer> buffers;
+	  public Map<TopicPartition, RecordBatch> batches;
 	  public RequestSend request;
 	  
-	  public InFlightRequest(RequestSend request, Map<TopicPartition, RecordBuffer> buffers) {
-	    this.buffers = buffers;
+	  public InFlightRequest(RequestSend request, Map<TopicPartition, RecordBatch> batches) {
+	    this.batches = batches;
 	    this.request = request;
 	  }
 	}

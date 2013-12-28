@@ -28,7 +28,7 @@ public class RecordSendTest {
       fail("Should have thrown exception.");
     } catch(TimeoutException e) { /* this is good */}
     
-    request.done(baseOffset, (short) 0);
+    request.done(baseOffset, null);
     assertTrue(send.completed());
     assertEquals(baseOffset + relOffset, send.offset());
   }
@@ -38,7 +38,7 @@ public class RecordSendTest {
    */
   @Test(expected = CorruptMessageException.class)
   public void testError() {
-    RecordSend send = new RecordSend(relOffset, asyncRequest(baseOffset, Errors.CORRUPT_MESSAGE, 50L));
+    RecordSend send = new RecordSend(relOffset, asyncRequest(baseOffset, new CorruptMessageException(), 50L));
     send.await();
   }
   
@@ -47,18 +47,18 @@ public class RecordSendTest {
    */
   @Test
   public void testBlocking() {
-    RecordSend send = new RecordSend(relOffset, asyncRequest(baseOffset, Errors.NONE, 50L));
+    RecordSend send = new RecordSend(relOffset, asyncRequest(baseOffset, null, 50L));
     assertEquals(baseOffset + relOffset, send.offset());
   }
   
   /* create a new request result that will be completed after the given timeout */
-  public ProduceRequestResult asyncRequest(final long baseOffset, final Errors error, final long timeout) {
+  public ProduceRequestResult asyncRequest(final long baseOffset, final RuntimeException error, final long timeout) {
     final ProduceRequestResult request = new ProduceRequestResult();
     new Thread() {
       public void run() {
         try {
           sleep(timeout);
-          request.done(baseOffset, error.code());
+          request.done(baseOffset, error);
         } catch(InterruptedException e) {
           e.printStackTrace();
         }

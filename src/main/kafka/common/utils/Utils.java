@@ -145,4 +145,17 @@ public class Utils {
 	    }
 	    return dest;
 	  }
+	  
+	  /**
+	   * Check that the parameter t is not null
+	   * @param t The object to check
+	   * @return t if it isn't null
+	   * @throws NullPointerException if t is null.
+	   */
+	  public static <T> T notNull(T t) {
+	    if(t == null)
+	      throw new NullPointerException();
+	    else
+	      return t;
+	  }
 }

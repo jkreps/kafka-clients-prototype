@@ -52,6 +52,13 @@ public enum Errors {
     this.code = (short) code;
     this.exception = exception;
   }
+  
+  /**
+   * An instance of the exception
+   */
+  public ApiException exception() {
+    return this.exception;
+  }
 	
   /**
    * The error code for the exception

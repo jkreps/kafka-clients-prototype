@@ -7,7 +7,7 @@ import java.util.Set;
 import kafka.common.Cluster;
 import kafka.common.PartitionInfo;
 
-public class Metadata {
+public final class Metadata {
   
   private Cluster cluster = Cluster.empty();
   private boolean needsUpdate = false;

@@ -9,6 +9,8 @@ import kafka.common.Cluster;
 import kafka.common.Serializer;
 import kafka.common.StringSerialization;
 import kafka.common.TopicPartition;
+import kafka.common.record.CompressionType;
+import kafka.common.utils.SystemTime;
 
 /**
  * A Kafka producer that can be used to send data to the Kafka cluster. The producer
@@ -18,7 +20,7 @@ public class KafkaProducer implements Producer {
   
   private final Partitioner partitioner = new DefaultPartitioner(); // TODO: should be pluggable
   private final Metadata metadata = new Metadata();
-  private final RecordBuffers buffers;
+  private final RecordAccumulator buffers;
   private final Serializer keySerializer = new StringSerialization();
   private final Serializer valSerializer = new StringSerialization();
   
@@ -27,7 +29,7 @@ public class KafkaProducer implements Producer {
     int batchSize = Integer.parseInt(properties.getProperty("batch.size", Integer.toString(64*1024)));
     int totalSize = Integer.parseInt(properties.getProperty("batch.size", Integer.toString(5*1024*1024)));
     int lingerMs = Integer.parseInt(properties.getProperty("linger.ms", Integer.toString(0)));
-    this.buffers = new RecordBuffers(batchSize, totalSize, lingerMs);
+    this.buffers = new RecordAccumulator(batchSize, totalSize, lingerMs, new SystemTime());
     String[] urls = properties.getProperty("metadata.broker.list").split(",");
     List<InetSocketAddress> addresses = new ArrayList<InetSocketAddress>();
     for(String url: urls) {
@@ -63,7 +65,7 @@ public class KafkaProducer implements Producer {
     byte[] value = valSerializer.toBytes(record.value());
     try {
       TopicPartition tp = new TopicPartition(record.topic(), partition);
-      return buffers.append(tp, key, value, callback);
+      return buffers.append(tp, key, value, CompressionType.NONE, callback);
     } catch(InterruptedException e) {
       throw new RuntimeException(e);
     }

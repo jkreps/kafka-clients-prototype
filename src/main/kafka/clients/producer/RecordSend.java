@@ -8,7 +8,7 @@ import kafka.common.errors.TimeoutException;
  * An asynchronously computed response from sending a record. Calling <code>await()</code> will block until the
  * response for this record is available.
  */
-public class RecordSend {
+public final class RecordSend {
 	
 	private final long relativeOffset;
 	private final ProduceRequestResult result;
@@ -25,7 +25,8 @@ public class RecordSend {
 	public RecordSend await() {
 	  try {
   		result.await();
-  		result.error().maybeThrow();
+  		if(result.error() != null)
+  		  throw result.error();
       return this;
     } catch(InterruptedException e) {
       throw new TimeoutException("Request was interrupted.", e);
@@ -43,7 +44,8 @@ public class RecordSend {
   		boolean success = result.await(timeout, unit);
   		if(!success)
   		  throw new TimeoutException("Request did not complete after " + timeout + " " + unit);
-  		result.error().maybeThrow();
+      if(result.error() != null)
+        throw result.error();
   		return this;
 	  } catch(InterruptedException e) {
 	    throw new TimeoutException("Request was interrupted.", e);
