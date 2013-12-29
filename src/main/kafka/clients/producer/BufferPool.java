@@ -56,6 +56,18 @@ public final class BufferPool {
     }
   }
   
+  /**
+   * The number of threads blocked waiting on memory
+   */
+  public int queued() {
+    lock.lock();
+    try {
+      return this.waiters.size();
+    } finally {
+      lock.unlock();
+    }
+  }
+  
   public int poolableSize() {
     return this.poolableSize;
   }

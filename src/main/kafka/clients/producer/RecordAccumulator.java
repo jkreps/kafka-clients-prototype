@@ -3,6 +3,7 @@ package kafka.clients.producer;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import kafka.common.utils.Utils;
 
 /**
  * This class accumulates records that are waiting to be sent in per-partition buffers.
+ * TODO: Current behavior is to send all when memory is exhausted
  */
 public final class RecordAccumulator {
 	
@@ -84,14 +86,17 @@ public final class RecordAccumulator {
 	 */
 	public List<TopicPartition> ready(long now) {
 		List<TopicPartition> ready = new ArrayList<TopicPartition>();
+    boolean exhausted = this.free.queued() > 0;
 		for(Map.Entry<TopicPartition, Deque<RecordBatch>> entry: this.batches.entrySet()) {
 			Deque<RecordBatch> deque = entry.getValue();
 			synchronized(deque) {
 				RecordBatch batch = deque.peekFirst();
-				boolean full = deque.size() > 1;
-				boolean expired = batch != null && now - batch.created >= lingerMs;
-				if(full | expired)
-					ready.add(batch.topicPartition);
+				if(batch != null) {
+				  boolean full = deque.size() > 1;
+				  boolean expired = now - batch.created >= lingerMs;
+				  if(full | expired | exhausted)
+					  ready.add(batch.topicPartition);
+				}
 			}
 		}
 		return ready;
@@ -104,6 +109,8 @@ public final class RecordAccumulator {
 	 * TODO: There may be a starvation issue due to iteration order
 	 */
 	public List<RecordBatch> drain(List<TopicPartition> partitions, int maxSize) {
+	  if(partitions.isEmpty())
+	    return Collections.emptyList();
 	  int size = 0;
 		List<RecordBatch> ready = new ArrayList<RecordBatch>();
 		/* to make starvation less likely this loop doesn't start at 0 */
@@ -113,10 +120,13 @@ public final class RecordAccumulator {
 			Deque<RecordBatch> deque = this.batches.get(tp);
 			if(deque != null) {
 				synchronized(deque) {
-					if(size + deque.peekFirst().records.sizeInBytes() > maxSize)
+					if(size + deque.peekFirst().records.sizeInBytes() > maxSize) {
 					  return ready;
-					else
-  					ready.add(deque.pollFirst());
+					} else {
+					  RecordBatch batch = deque.pollFirst();
+					  size += batch.records.sizeInBytes();
+  					ready.add(batch);
+					}
 				}
 			}
 			this.drainIndex = (this.drainIndex + 1) % partitions.size();
