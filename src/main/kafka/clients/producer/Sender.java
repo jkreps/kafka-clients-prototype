@@ -2,6 +2,7 @@ package kafka.clients.producer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -332,10 +333,12 @@ public class Sender implements Runnable {
 	    List<RecordBatch> parts = entry.getValue();
 	    Object[] partitionData = new Object[parts.size()];
 	    for(int i = 0; i < parts.size(); i++) {
+	      ByteBuffer buffer = parts.get(i).records.buffer();
+	      buffer.flip();
 	      Struct part = 
 	          topicData.instance("data")
 	                   .set("partition", parts.get(i).topicPartition.partition())
-	                   .set("message_set", parts.get(i).records.buffer());
+	                   .set("message_set", buffer);
  	      partitionData[i] = part;
 	    }
 	    topicData.set("data", partitionData);
