@@ -164,10 +164,12 @@ public final class BufferPool {
     try {
       for(int i = 0; i < buffers.length; i++) {
         int size = buffers[i].limit();
-        if(size == this.poolableSize)
+        if(size == this.poolableSize) {
+          buffers[i].clear();
           this.free.add(buffers[i]);
-        else
+        } else {
           this.available += size;
+        }
         Condition moreMem = this.waiters.peekFirst();
         if(moreMem != null)
           moreMem.signal();

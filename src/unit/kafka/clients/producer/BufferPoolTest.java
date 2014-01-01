@@ -26,10 +26,13 @@ public class BufferPoolTest {
     assertEquals("Buffer size should equal requested size.", size, buffer.limit());
     assertEquals("Unallocated memory should have shrunk", totalMemory - size, pool.unallocatedMemory());
     assertEquals("Available memory should have shrunk", totalMemory - size, pool.availableMemory());
+    buffer.putInt(1);
     pool.deallocate(buffer);
     assertEquals("All memory should be available", totalMemory, pool.availableMemory());
     assertEquals("But now some is on the free list", totalMemory - size, pool.unallocatedMemory());
     buffer = pool.allocate(size);
+    assertEquals("Recycled buffer should be cleared.", 0, buffer.position());
+    assertEquals("Recycled buffer should be cleared.", buffer.capacity(), buffer.limit());
     pool.deallocate(buffer);
     assertEquals("All memory should be available", totalMemory, pool.availableMemory());
     assertEquals("Still a single buffer on the free list", totalMemory - size, pool.unallocatedMemory());

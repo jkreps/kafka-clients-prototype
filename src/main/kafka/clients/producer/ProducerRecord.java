@@ -38,6 +38,10 @@ public final class ProducerRecord {
 	public ProducerRecord(String topic, Object key, Object value) {
 		this(topic, key, key, value);
 	}
+	
+	public ProducerRecord(String topic, Object value) {
+	  this(topic, null, value);
+	}
 
 	/**
 	 * The topic this record is being sent to

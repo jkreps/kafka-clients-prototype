@@ -14,7 +14,7 @@ import kafka.common.record.MemoryRecords;
  * This class is not thread safe and external synchronization must be used when modifying it
  */
 public final class RecordBatch {
-	private int recordCount = 0;
+	public int recordCount = 0;
 	public final long created;
 	public final MemoryRecords records;
 	public final TopicPartition topicPartition;

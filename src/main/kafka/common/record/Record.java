@@ -26,7 +26,7 @@ public final class Record {
 	  /**
 	   * The minimum valid size for the record header
 	   */
-	  public static final int MinHeaderSize = CRC_LENGTH + MAGIC_LENGTH + ATTRIBUTE_LENGTH + KEY_SIZE_LENGTH + VALUE_SIZE_LENGTH;
+	  public static final int MIN_HEADER_SIZE = CRC_LENGTH + MAGIC_LENGTH + ATTRIBUTE_LENGTH + KEY_SIZE_LENGTH + VALUE_SIZE_LENGTH;
 	  
 	  /**
 	   * The current "magic" value
@@ -59,10 +59,10 @@ public final class Record {
 	   * @param valueSize The size of the payload to use
 	   */
 	  public Record(byte[] key, 
-			           byte[] value,            
-			           CompressionType codec, 
-			           int valueOffset, 
-	                   int valueSize) {
+			            byte[] value,            
+			            CompressionType codec, 
+			            int valueOffset, 
+	                int valueSize) {
 	    this(ByteBuffer.allocate(recordSize(key == null? 0: key.length, 
 	    		                            value == null? 0 : valueSize >= 0? valueSize : value.length - valueOffset)));
 	    write(this.buffer, key, value, codec, valueOffset, valueSize);
@@ -122,6 +122,10 @@ public final class Record {
 	  
 	  public static void write(ByteBuffer buffer, byte[] key, byte[] value, CompressionType codec) {
 		  write(buffer, key, value, codec, 0, -1);
+	  }
+	  
+	  public static int recordSize(byte[] key, byte[] value) {
+	    return recordSize(key == null? 0 : key.length, value == null? 0 : value.length);
 	  }
 	  
 	  public static int recordSize(int keySize, int valueSize) {

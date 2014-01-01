@@ -23,7 +23,7 @@ public class RecordAccumulatorTest {
   private MockTime time = new MockTime();
   private byte[] key = "key".getBytes();
   private byte[] value = "value".getBytes();
-  private int msgSize = Records.LOG_OVERHEAD + Record.recordSize(key.length, value.length);
+  private int msgSize = Records.LOG_OVERHEAD + Record.recordSize(key, value);
   
   @Test
   public void testFull() throws Exception {
@@ -84,7 +84,7 @@ public class RecordAccumulatorTest {
   @Test
   public void testStressfulSituation() throws Exception {
     final int numThreads = 5;
-    final int msgs = 100000;
+    final int msgs = 100;
     final int numParts = 10;
     final RecordAccumulator accum = new RecordAccumulator(1024, 10*1024, 0L, time);
     List<Thread> threads = new ArrayList<Thread>();

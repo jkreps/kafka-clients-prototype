@@ -11,6 +11,12 @@ public class NetworkReceive implements Receive {
   private final ByteBuffer size; 
   private ByteBuffer buffer;
   
+  public NetworkReceive(int source, ByteBuffer buffer) {
+    this.source = source;
+    this.buffer = buffer;
+    this.size = null;
+  }
+  
   public NetworkReceive(int source) {
     this.source = source;
     this.size = ByteBuffer.allocate(4);

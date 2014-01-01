@@ -19,21 +19,30 @@ public class MemoryRecords implements Records {
 		this.buffer = buffer;
 	}
 	
+	/**
+	 * Append the given record and offset to the buffer
+	 */
 	public void append(long offset, Record record) {
-	    buffer.putLong(offset);
-	    buffer.putInt(record.size());
-	    buffer.put(record.buffer());
-	    record.buffer().rewind();
+	  buffer.putLong(offset);
+	  buffer.putInt(record.size());
+	  buffer.put(record.buffer());
+	  record.buffer().rewind();
 	}
 
+	/**
+	 * Append a new record and offset to the buffer
+	 */
 	public void append(long offset, byte[] key, byte[] value, CompressionType type) {
 		buffer.putLong(offset);
-		buffer.putInt(Record.recordSize(key.length, value.length));
+		buffer.putInt(Record.recordSize(key, value));
 		Record.write(this.buffer, key, value, type);
 	}
 	
+	/**
+	 * Check if we have room for a new record containing the given key/value pair
+	 */
 	public boolean hasRoomFor(byte[] key, byte[] value) {
-		return this.buffer.remaining() >= Records.LOG_OVERHEAD + Record.recordSize(key.length, value.length);
+		return this.buffer.remaining() >= Records.LOG_OVERHEAD + Record.recordSize(key, value);
 	}
 	
 	  /** Write the messages in this set to the given channel */
@@ -41,33 +50,18 @@ public class MemoryRecords implements Records {
 	    return channel.write(buffer);
 	  }
 	  
+	  /**
+	   * The size of this record set
+	   */
 	  public int sizeInBytes() {
-		  return this.buffer.limit();
-	  }
-		  
-	  public boolean equals(Object other) {
-		  if(this == other)
-			  return true;
-		  if(other == null)
-			  return false;
-		  if(!other.getClass().equals(MemoryRecords.class))
-			  return false;
-		  MemoryRecords records = (MemoryRecords) other;
-		  return this.buffer.equals(records.buffer);
-	  }
-		  
-	  public int hashCode() {
-		  return buffer.hashCode();
+	    return this.buffer.position();
 	  }
 	  
-	  public void clear() {
-		  buffer.clear();
-	  }
-	  
+	  /**
+	   * Get the byte buffer that backs this records instance
+	   */
 	  public ByteBuffer buffer() {
-	    ByteBuffer buffer = this.buffer.duplicate();
-	    buffer.rewind();
-	    return buffer;
+	    return buffer.duplicate();
 	  }
 
     @Override

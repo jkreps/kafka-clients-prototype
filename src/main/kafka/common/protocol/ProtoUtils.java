@@ -53,24 +53,30 @@ public class ProtoUtils {
   
   public static Cluster parseMetadataResponse(Struct response) {
     List<Node> brokers = new ArrayList<Node>();
-    for (Struct broker : (Struct[]) response.get("brokers")) {
+    Object[] brokerStructs = (Object[]) response.get("brokers");
+    for (int i = 0; i < brokerStructs.length; i++) {
+      Struct broker = (Struct) brokerStructs[i];
       int nodeId = (Integer) broker.get("node_id");
       String host = (String) broker.get("host");
       int port = (Integer) broker.get("port");
       brokers.add(new Node(nodeId, host, port));
     }
     List<PartitionInfo> partitions = new ArrayList<PartitionInfo>();
-    for (Struct topicInfo : (Struct[]) response.get("topic_metadata")) {
+    Object[] topicInfos = (Object[]) response.get("topic_metadata");
+    for (int i = 0; i < topicInfos.length; i++) {
+      Struct topicInfo = (Struct) topicInfos[i];
       short topicError = topicInfo.getShort("topic_error_code");
       if (topicError == Errors.NONE.code()) {
-        String topic = topicInfo.getString("topic_name");
-        for (Struct partitionInfo : (Struct[]) topicInfo.get("partition_metadata")) {
+        String topic = topicInfo.getString("topic");
+        Object[] partitionInfos = (Object[]) topicInfo.get("partition_metadata");
+        for (int j = 0; j < partitionInfos.length; j++) {
+          Struct partitionInfo = (Struct) partitionInfos[j];
           short partError = partitionInfo.getShort("partition_error_code");
           if (partError == Errors.NONE.code()) {
             int partition = partitionInfo.getInt("partition_id");
             int leader = partitionInfo.getInt("leader");
-            int[] replicas = intArray((Integer[]) partitionInfo.get("replicas"));
-            int[] isr = intArray((Integer[]) partitionInfo.get("isr"));
+            int[] replicas = intArray((Object[]) partitionInfo.get("replicas"));
+            int[] isr = intArray((Object[]) partitionInfo.get("isr"));
             partitions.add(new PartitionInfo(topic, partition, leader,replicas, isr));
           }
         }
@@ -79,10 +85,10 @@ public class ProtoUtils {
     return new Cluster(brokers, partitions);
   }
   
-  private static int[] intArray(Integer[] ints) {
+  private static int[] intArray(Object[] ints) {
     int[] copy = new int[ints.length];
     for(int i = 0; i < ints.length; i++)
-      copy[i] = ints[i];
+      copy[i] = (Integer) ints[i];
     return copy;
   }
   

@@ -3,9 +3,7 @@ package kafka.clients.common.network;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
-import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -14,6 +12,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import kafka.common.KafkaException;
 
 /**
  * A selector interface for doing asynchronous I/O against multiple connections.
@@ -47,8 +47,12 @@ public class Selector implements Selectable {
 	private final List<Integer> connected;
 	
 
-	public Selector() throws IOException {
-		this.selector = java.nio.channels.Selector.open();
+	public Selector() {
+	  try {
+  		this.selector = java.nio.channels.Selector.open();
+	  } catch(IOException e) {
+	    throw new KafkaException(e);
+	  }
 		this.keys = new HashMap<Integer, SelectionKey>();
 		this.completedSends = new ArrayList<NetworkSend>();
 		this.completedReceives = new ArrayList<NetworkReceive>();
@@ -105,7 +109,7 @@ public class Selector implements Selectable {
    * Close this selector and all associated connections
    */
 	@Override
-  public void close() throws IOException {
+  public void close() {
 		for(SelectionKey key: this.selector.keys()) {
 		  try {
   			close(key);
@@ -113,7 +117,11 @@ public class Selector implements Selectable {
 		    e.printStackTrace();
 		  }
 		}
-		this.selector.close();
+		try {
+  		this.selector.close();
+		} catch(IOException e) {
+		  e.printStackTrace();
+		}
 	}
 	
   /**
@@ -165,6 +173,7 @@ public class Selector implements Selectable {
   						transmissions.receive = new NetworkReceive(transmissions.id);
   				  transmissions.receive.readFrom(channel);
   					if(transmissions.receive.complete()) {
+  					  transmissions.receive.payload().rewind();
   						this.completedReceives.add(transmissions.receive);
   						transmissions.clearReceive();
   					}
@@ -191,33 +200,21 @@ public class Selector implements Selectable {
 		}
 	}
 	
-	/* (non-Javadoc)
-   * @see kafka.clients.common.network.Selectable#completedSends()
-   */
 	@Override
   public List<NetworkSend> completedSends() {
 	  return this.completedSends;
 	}
 	
-	/* (non-Javadoc)
-   * @see kafka.clients.common.network.Selectable#completedReceives()
-   */
 	@Override
   public List<NetworkReceive> completedReceives() {
 	  return this.completedReceives;
 	}
 	
-	/* (non-Javadoc)
-   * @see kafka.clients.common.network.Selectable#disconnected()
-   */
 	@Override
   public List<Integer> disconnected() {
 	  return this.disconnected;
 	}
 	
-	/* (non-Javadoc)
-   * @see kafka.clients.common.network.Selectable#connected()
-   */
 	@Override
   public List<Integer> connected() {
 	  return this.connected;

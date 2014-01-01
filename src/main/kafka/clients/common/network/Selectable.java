@@ -9,7 +9,7 @@ public interface Selectable {
   public abstract void connect(int id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException;
   public abstract void disconnect(int id);
   public abstract void wakeup();
-  public abstract void close() throws IOException;
+  public abstract void close();
   public abstract void poll(long timeout, List<NetworkSend> sends) throws IOException;
   public abstract List<NetworkSend> completedSends();
   public abstract List<NetworkReceive> completedReceives();

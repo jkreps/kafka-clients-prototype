@@ -14,9 +14,6 @@ public class RequestSend extends NetworkSend {
     super(destination, serialize(header, body));
     this.header = header;
     this.body = body;
-    this.buffers[0].putInt(this.buffers[0].remaining() - 4);
-    this.header.writeTo(this.buffers[0]);
-    this.body.writeTo(this.buffers[0]);
   }
   
   private static ByteBuffer serialize(RequestHeader header, Struct body) {

@@ -37,7 +37,7 @@ public class Protocol {
 	
 	public static Schema TOPIC_METADATA_V0 = 
 			new Schema(new Field("topic_error_code", INT16, "The error code for the given topic."),
-					   new Field("topic_name", STRING, "The name of the topic"),
+					   new Field("topic", STRING, "The name of the topic"),
 					   new Field("partition_metadata", new ArrayOf(PARTITION_METADATA_V0), "Metadata for each partition of the topic."));
 	
 	public static Schema METADATA_RESPONSE_V0 = 
@@ -50,7 +50,7 @@ public class Protocol {
 	/* Produce api */
 	
 	public static Schema TOPIC_PRODUCE_DATA_V0 = 
-			new Schema(new Field("topic_name", STRING),
+			new Schema(new Field("topic", STRING),
 					       new Field("data", new ArrayOf(new Schema(new Field("partition", INT32), 
 							                                    new Field("message_set", BYTES)))));
 	
@@ -61,30 +61,44 @@ public class Protocol {
 	
 	public static Schema PRODUCE_RESPONSE_V0 = 
 			new Schema(new Field("responses", 
-					             new ArrayOf(new Schema(new Field("topic_name", STRING), 
-					                                    new Field("partition_response", 
+					             new ArrayOf(new Schema(new Field("topic", STRING), 
+					                                    new Field("partition_responses", 
 					                                    		  new ArrayOf(new Schema(new Field("partition", INT32), 
 					                                    		                         new Field("error_code", INT16),
-					                                    		                         new Field("offset", INT64))))))));
+					                                    		                         new Field("base_offset", INT64))))))));
 	
 	public static Schema[] PRODUCE_REQUEST = new Schema[] {PRODUCE_REQUEST_V0};
+	public static Schema[] PRODUCE_RESPONSE = new Schema[] {PRODUCE_RESPONSE_V0};
 	
 	/* an array of all requests and responses with all schema versions */
-	public static Schema[][] REQUESTS = new Schema[ApiKeys.MAX_API_KEY][];
-	public static Schema[][] RESPONSES = new Schema[ApiKeys.MAX_API_KEY][];
+	public static Schema[][] REQUESTS = new Schema[ApiKeys.MAX_API_KEY+1][];
+	public static Schema[][] RESPONSES = new Schema[ApiKeys.MAX_API_KEY+1][];
 	
 	/* the latest version of each api */
-	public static short[] CURR_VERSION = new short[ApiKeys.MAX_API_KEY];
+	public static short[] CURR_VERSION = new short[ApiKeys.MAX_API_KEY+1];
 	
   static {
     REQUESTS[ApiKeys.PRODUCE.id] = PRODUCE_REQUEST;
     REQUESTS[ApiKeys.FETCH.id] = new Schema[]{};
     REQUESTS[ApiKeys.LIST_OFFSETS.id] = new Schema[]{};
     REQUESTS[ApiKeys.METADATA.id] = METADATA_REQUEST;
+    REQUESTS[ApiKeys.LEADER_AND_ISR.id] = new Schema[]{};
+    REQUESTS[ApiKeys.STOP_REPLICA.id] = new Schema[]{};
+    REQUESTS[ApiKeys.OFFSET_COMMIT.id] = new Schema[]{};
+    REQUESTS[ApiKeys.OFFSET_FETCH.id] = new Schema[]{};
+    
+    RESPONSES[ApiKeys.PRODUCE.id] = PRODUCE_RESPONSE;
+    RESPONSES[ApiKeys.FETCH.id] = new Schema[]{};
+    RESPONSES[ApiKeys.LIST_OFFSETS.id] = new Schema[]{};
+    RESPONSES[ApiKeys.METADATA.id] = METADATA_RESPONSE;
+    RESPONSES[ApiKeys.LEADER_AND_ISR.id] = new Schema[]{};
+    RESPONSES[ApiKeys.STOP_REPLICA.id] = new Schema[]{};
+    RESPONSES[ApiKeys.OFFSET_COMMIT.id] = new Schema[]{};
+    RESPONSES[ApiKeys.OFFSET_FETCH.id] = new Schema[]{};
     
     /* set the maximum version of each api */
     for(ApiKeys api: ApiKeys.values())
-      CURR_VERSION[api.id] = (short) REQUESTS[api.id].length;
+      CURR_VERSION[api.id] = (short) (REQUESTS[api.id].length-1);
     
     /* sanity check that we have the same number of request and response versions for each api */
     for(ApiKeys api: ApiKeys.values())

@@ -25,15 +25,17 @@ public class MemoryRecordsTest {
       recs2.append(i, toArray(r.key()), toArray(r.value()), r.compressionType());
     }
     
-    for(MemoryRecords recs: Arrays.asList(recs1, recs2)) {
-      Iterator<LogEntry> iter = recs.iterator();
-      for(int i = 0; i < list.size(); i++) {
-        assertTrue(iter.hasNext());
-        LogEntry entry = iter.next();
-        assertEquals((long) i, entry.offset());
-        assertEquals(list.get(i), entry.record());
+    for(int iteration = 0; iteration < 2; iteration++) {
+      for(MemoryRecords recs: Arrays.asList(recs1, recs2)) {
+        Iterator<LogEntry> iter = recs.iterator();
+        for(int i = 0; i < list.size(); i++) {
+          assertTrue(iter.hasNext());
+          LogEntry entry = iter.next();
+          assertEquals((long) i, entry.offset());
+          assertEquals(list.get(i), entry.record());
+        }
+        assertFalse(iter.hasNext());
       }
-      assertFalse(iter.hasNext());
     }
   }
   

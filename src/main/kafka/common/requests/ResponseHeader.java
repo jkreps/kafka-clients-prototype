@@ -1,6 +1,6 @@
 package kafka.common.requests;
 
-import static kafka.common.protocol.Protocol.REQUEST_HEADER;
+import static kafka.common.protocol.Protocol.RESPONSE_HEADER;
 
 import java.nio.ByteBuffer;
 
@@ -10,7 +10,7 @@ import kafka.common.protocol.types.Struct;
 
 public class ResponseHeader {
   
-  private static Field CORRELATION_KEY_FIELD = REQUEST_HEADER.get("correlation_id");
+  private static Field CORRELATION_KEY_FIELD = RESPONSE_HEADER.get("correlation_id");
   
   private final Struct header;
   

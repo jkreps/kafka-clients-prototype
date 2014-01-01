@@ -50,4 +50,9 @@ public class TopicPartition {
 		return true;
 	}
 	
+	@Override
+	public String toString() {
+	  return topic + "-" + partition;
+	}
+	
 }

@@ -61,7 +61,10 @@ public final class Cluster {
 	}
 	
 	public Node nextNode() {
-	  int idx = Utils.abs(counter.getAndIncrement()) % nodes.size();
+	  int size = nodes.size();
+	  if(size == 0)
+	    throw new IllegalStateException("No known nodes.");
+	  int idx = Utils.abs(counter.getAndIncrement()) % size;
 	  return this.nodes.get(idx);
 	}
 	

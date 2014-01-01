@@ -36,11 +36,11 @@ public class RequestHeader {
     this.header.set(CORRELATION_ID_FIELD, correlation);
   }
   
-  public Short apiKey() {
+  public short apiKey() {
     return (Short) this.header.get(API_KEY_FIELD);
   }
   
-  public Short apiVersion() {
+  public short apiVersion() {
     return (Short) this.header.get(API_VERSION_FIELD);
   }
   
@@ -48,7 +48,7 @@ public class RequestHeader {
     return (String) this.header.get(CLIENT_ID_FIELD);
   }
   
-  public Integer correlationId() {
+  public int correlationId() {
     return (Integer) this.header.get(CORRELATION_ID_FIELD);
   }
   

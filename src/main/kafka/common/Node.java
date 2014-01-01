@@ -56,4 +56,9 @@ public class Node {
 		return true;
 	}
 	
+	@Override
+	public String toString() {
+	  return "Node(" + id + ", " + host + ", " + port + ")";
+	}
+	
 }

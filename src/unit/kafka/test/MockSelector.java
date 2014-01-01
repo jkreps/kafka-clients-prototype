@@ -8,12 +8,12 @@ import java.util.List;
 import kafka.clients.common.network.NetworkReceive;
 import kafka.clients.common.network.NetworkSend;
 import kafka.clients.common.network.Selectable;
+import kafka.common.utils.MockTime;
 import kafka.common.utils.Time;
 
 public class MockSelector implements Selectable {
   
   private final Time time;
-  private final List<NetworkSend> initiatedSends = new ArrayList<NetworkSend>();
   private final List<NetworkSend> completedSends = new ArrayList<NetworkSend>();
   private final List<NetworkReceive> completedReceives = new ArrayList<NetworkReceive>();
   private final List<Integer> disconnected = new ArrayList<Integer>();
@@ -39,9 +39,16 @@ public class MockSelector implements Selectable {
   @Override
   public void close() {}
   
+  public void clear() {
+    this.completedSends.clear();
+    this.completedReceives.clear();
+    this.disconnected.clear();
+    this.connected.clear();
+  }
+  
   @Override
   public void poll(long timeout, List<NetworkSend> sends) throws IOException {
-    this.initiatedSends.addAll(sends);
+    this.completedSends.addAll(sends);
     time.sleep(timeout);
   }
 

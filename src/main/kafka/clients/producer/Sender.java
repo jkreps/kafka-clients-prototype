@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,135 +25,185 @@ import kafka.common.protocol.types.Struct;
 import kafka.common.requests.RequestHeader;
 import kafka.common.requests.RequestSend;
 import kafka.common.requests.ResponseHeader;
+import kafka.common.utils.Time;
 
 /**
  * A thread that sends the produce requests
  */
 public class Sender implements Runnable {
 	
-	private static enum NodeState {CONNECTING, CONNECTED}
-	
 	private final Map<Integer, NodeState> nodeState;
 	private final RecordAccumulator accumulator;
 	private final Selectable selector;
 	private final String clientId;
 	private final int maxRequestSize;
-	private final long lingerMs;
+	private final long reconnectBackoffMs;
 	private final short acks;
 	private final int requestTimeout;
 	private final InFlightRequests inFlightRequests;
-	private long lastMetadataFetch = 0L;
-	private Cluster cluster;
-	private Metadata metadata;
-	private int correlation = 0;
+  private final Metadata metadata;
+	private final Time time;
+	private int correlation;
+	private boolean metadataFetchInProgress;
 	private volatile boolean running;
 
 	public Sender(Selectable selector,
 	              Metadata metadata,
 			          RecordAccumulator accumulator,
 			          String clientId,
-			          int maxRequestSize, 
-			          long lingerMs,
+			          int maxRequestSize,
+			          long reconnectBackoffMs,
 			          short acks,
-			          int requestTimeout) {
+			          int requestTimeout,
+			          Time time) {
 		this.nodeState = new HashMap<Integer, NodeState>();
 		this.accumulator = accumulator;
 		this.selector = selector;
 		this.maxRequestSize = maxRequestSize;
-		this.lingerMs = lingerMs;
-		this.cluster = Cluster.empty();
+		this.reconnectBackoffMs = reconnectBackoffMs;
 		this.metadata = metadata;
 		this.clientId = clientId;
 		this.running = true;
 		this.requestTimeout = requestTimeout;
 		this.acks = acks;
 		this.inFlightRequests = new InFlightRequests();
+		this.correlation = 0;
+		this.metadataFetchInProgress = false;
+		this.time = time;
 	}
 	
-	/*
-	 * partition info
-	 *   - buffer for reuse
-	 * TODO: Probably shouldn't throw any exceptions
+	/**
+	 * The main run loop for the sender thread
 	 */
 	public void run() {
-    List<NetworkSend> sends = new ArrayList<NetworkSend>();
+	  // main loop
 		while(running) {
-			// ready partitions - in flight or blacklisted partitions
-			long now = System.currentTimeMillis();
-			boolean fetchMetadata = false;
-			List<TopicPartition> ready = this.accumulator.ready(now);
-			
-			// prune the list of ready topics to eliminate any that we aren't ready to process yet
-			Iterator<TopicPartition> iter = ready.iterator();
-			while(iter.hasNext()) {
-			  TopicPartition tp = iter.next();
-			  Node node = cluster.leaderFor(tp);
-			  if(node == null) {
-			    // we don't know about this topic/partition, re-fetch metadata
-			    fetchMetadata = true;
-			    iter.remove();
-			  } else if(nodeState.get(node) == null) {
-			    // we don't have a connection to this node yet, make one
-			    try {
-  			    selector.connect(node.id(), new InetSocketAddress(node.host(), node.port()), 64*1024*1024, 64*1024*1024); // TODO socket buffers
-	          nodeState.put(node.id(), NodeState.CONNECTING);
-			    } catch(IOException e) {
-	           // TODO: handle me
-			      throw new RuntimeException(e);
-			    }
-			    iter.remove();
-			  } else if(nodeState.get(node) != NodeState.CONNECTED) {
-			    // we are connecting but haven't finished yet.
-			    iter.remove();
-			  } else if(!inFlightRequests.canSendMore(node.id())) {
-			    // we haven't finished sending our existing requests
-			    iter.remove();
-			  }
-			}
-			
-			// should we update our metadata?
-			// TODO: do a periodic refresh just for good measure
-			// TODO: don't hard-code backoff
-			if(fetchMetadata == true && this.lastMetadataFetch > 100) {
-			  InFlightRequest req = metadataRequest(metadata.topics());
-			  sends.add(req.request);
-			  this.inFlightRequests.add(req);
-			}
-			
-			// create produce requests
-			List<RecordBatch> batches = this.accumulator.drain(ready, this.maxRequestSize);
-			collate(cluster, batches, sends);
-			
-			// do the I/O
 			try {
-  			this.selector.poll(1000L, sends);
-			} catch(IOException e) {
-			  throw new RuntimeException(e);
+  			run(time.milliseconds());
+			} catch(Exception e) {
+			  e.printStackTrace();
 			}
-			
-			handleResponses(this.selector.completedReceives(), now);
-			
-			handleDisconnects(this.selector.disconnected());
-		}
+		}		
+		// send anything left in the accumulator
+		while(run(time.milliseconds()) > 0);
+		
+		// close all the connections
+		this.selector.close();
 	}
 	
-	private void handleResponses(List<NetworkReceive> receives, long now) {
-    for(NetworkReceive receive: receives) {
-      int source = receive.source();
-      InFlightRequest req = inFlightRequests.nextCompleted(source);
-      ResponseHeader header = ResponseHeader.parse(receive.payload());
-      short apiKey = req.request.header().apiKey();
-      Struct body = (Struct) ProtoUtils.currentRequestSchema(apiKey).read(receive.payload());
-      correlate(req.request.header(), header);
-      if(req.request.header().apiKey() == ApiKeys.PRODUCE.id)
-        handleProduceResponse(req, body);
-      else if(req.request.header().apiKey() == ApiKeys.METADATA.id)
-        handleMetadataResponse(body, now);
-      else
-        throw new IllegalStateException("Unexpected response type: " + req.request.header().apiKey());
+	/**
+	 * Run a single iteration of sending
+	 * @param now The current time
+	 * @return The total number of topic/partitions that had data ready (regardless of what we actually sent)
+	 */
+	int run(long now) {
+	  Cluster cluster = metadata.fetch();
+    // get the list of partitions with data ready to send
+    List<TopicPartition> ready = this.accumulator.ready(now);
+    
+    // prune the list of ready topics to eliminate any that we aren't ready to send yet
+    List<TopicPartition> sendable = processReadyPartitions(cluster, ready, now);
+    
+    // should we update our metadata?
+    List<NetworkSend> sends = new ArrayList<NetworkSend>(sendable.size());
+    InFlightRequest metadataReq = maybeMetadataRequest(cluster, now);
+    if(metadataReq != null) {
+      sends.add(metadataReq.request);
+      this.inFlightRequests.add(metadataReq);
+    }
+    
+    // create produce requests
+    List<RecordBatch> batches = this.accumulator.drain(sendable, this.maxRequestSize);
+    List<InFlightRequest> requests = collate(cluster, batches);
+    for(int i = 0; i < requests.size(); i++) {
+      InFlightRequest request = requests.get(i);
+      this.inFlightRequests.add(request);
+      sends.add(request.request);
+    }
+    
+    // do the I/O
+    try {
+      this.selector.poll(1000L, sends);
+    } catch(IOException e) {
+      e.printStackTrace();
+    }
+    
+    // handle responses, connections, and disconnections
+    handleResponses(this.selector.completedReceives(), now);
+    handleDisconnects(this.selector.disconnected());
+    handleConnects(this.selector.connected());
+    
+    return ready.size();
+	}
+	
+	private InFlightRequest maybeMetadataRequest(Cluster cluster, long now) {
+	  if(this.metadataFetchInProgress || !metadata.needsUpdate(now))
+	    return null;
+	  Node node = cluster.nextNode();
+    NodeState state = nodeState.get(node.id());
+    if(state == null || (state.state == ConnectionState.UNKNOWN && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
+      // we don't have a connection to this node right now, make one
+      initiateConnect(node, now);
+      return null;
+    } else if(state.state == ConnectionState.CONNECTED) {
+      this.metadataFetchInProgress = true;
+      return metadataRequest(node.id(), metadata.topics());
+	  } else {
+      return null;
+	  }
+	}
+	
+	/**
+	 * Start closing the sender (won't actually complete until all data is sent out)
+	 */
+	public void initiateClose() {
+	  this.running = false;
+	  this.accumulator.close();
+	}
+	
+	/**
+	 * Process the set of topic-partitions with data ready to send. If we have a connection to the appropriate node, add it to the returned set.
+	 * For any partitions we have no connection to either make one, fetch the appropriate metdata to be able to do so
+	 */
+	private List<TopicPartition> processReadyPartitions(Cluster cluster, List<TopicPartition> ready, long now) {
+    List<TopicPartition> sendable = new ArrayList<TopicPartition>(ready.size());
+    for(TopicPartition tp: ready) {
+      Node node = cluster.leaderFor(tp);
+      if(node == null) {
+        // we don't know about this topic/partition or it has no leader, re-fetch metadata
+        metadata.forceUpdate();
+      } else {
+        NodeState state = nodeState.get(node.id());
+        // TODO: encapsulate this logic somehow 
+        if(state == null || (state.state == ConnectionState.UNKNOWN && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
+          // we don't have a connection to this node right now, make one
+          initiateConnect(node, now);
+        } else if(state.state == ConnectionState.CONNECTED && inFlightRequests.canSendMore(node.id())) {
+          sendable.add(tp);
+        }
+      }
+    }
+    return sendable;
+	}
+	
+	/**
+	 * Initiate a connection to the given node
+	 */
+	private void initiateConnect(Node node, long now) {
+    try {
+      selector.connect(node.id(), new InetSocketAddress(node.host(), node.port()), 64*1024*1024, 64*1024*1024); // TODO socket buffers
+      nodeState.put(node.id(), new NodeState(ConnectionState.CONNECTING, now));
+    } catch(IOException e) {
+       /* attempt failed, we'll try again after the backoff */
+      nodeState.put(node.id(), new NodeState(ConnectionState.UNKNOWN, now));
+      /* maybe the problem is our metadata, update it */
+      metadata.forceUpdate();
     }
 	}
 	
+	/**
+	 * Handle any closed connections
+	 */
 	private void handleDisconnects(List<Integer> disconnects) {
 	  for(int node: disconnects) {
   	  for(InFlightRequest request: this.inFlightRequests.clearAll(node)) {
@@ -166,40 +215,82 @@ public class Sender implements Runnable {
 	  }
 	}
 	
-	private void handleMetadataResponse(Struct response, long now) {
-	  this.lastMetadataFetch = now;
-	  this.metadata.update(ProtoUtils.parseMetadataResponse(response));
+	/**
+	 * Record any connections that completed in our node state
+	 */
+	private void handleConnects(List<Integer> connects) {
+	  for(Integer id: connects)
+	     this.nodeState.get(id).state = ConnectionState.CONNECTED;
 	}
 	
+	/**
+   * Handle responses from the server
+   */
+  private void handleResponses(List<NetworkReceive> receives, long now) {
+    for(NetworkReceive receive: receives) {
+      int source = receive.source();
+      InFlightRequest req = inFlightRequests.nextCompleted(source);
+      ResponseHeader header = ResponseHeader.parse(receive.payload());
+      short apiKey = req.request.header().apiKey();
+      Struct body = (Struct) ProtoUtils.currentResponseSchema(apiKey).read(receive.payload());
+      correlate(req.request.header(), header);
+      if(req.request.header().apiKey() == ApiKeys.PRODUCE.id)
+        handleProduceResponse(req, body);
+      else if(req.request.header().apiKey() == ApiKeys.METADATA.id)
+        handleMetadataResponse(body, now);
+      else 
+        throw new IllegalStateException("Unexpected response type: " + req.request.header().apiKey());
+    }
+  }
+  
+  private void handleMetadataResponse(Struct body, long now) {
+    this.metadataFetchInProgress = false;
+    this.metadata.update(ProtoUtils.parseMetadataResponse(body), now);
+  }
+	
+  /**
+   * Handle a produce response
+   */
 	private void handleProduceResponse(InFlightRequest request, Struct response) {
-	  for(Struct topicResponse: (Struct[]) response.get("responses")) {
-	    String topic = (String) topicResponse.get("topic_name");
-	    for(Struct partResponse: (Struct[]) topicResponse.get("partition_response")){
-	      int partition = (Integer) partResponse.get("partition");
-	      short errorCode = (Short) partResponse.get("error_code");
-	      long offset = (Long) partResponse.get("offset");
+	  for(Object topicResponse: (Object[]) response.get("responses")) {
+	    Struct topicRespStruct = (Struct) topicResponse;
+	    String topic = (String) topicRespStruct.get("topic");
+	    for(Object partResponse: (Object[]) topicRespStruct.get("partition_responses")){
+	      Struct partRespStruct = (Struct) partResponse;
+	      int partition = (Integer) partRespStruct.get("partition");
+	      short errorCode = (Short) partRespStruct.get("error_code");
+	      long offset = (Long) partRespStruct.get("base_offset");
 	      RecordBatch batch = request.batches.get(new TopicPartition(topic, partition));
 	      batch.done(offset, Errors.forCode(errorCode).exception());
 	    }
 	  }
+	  this.accumulator.deallocate(request.batches.values());
 	}
 	
+	/**
+	 * Validate that the response corresponds to the request we expect or else explode
+	 */
 	private void correlate(RequestHeader requestHeader, ResponseHeader responseHeader) {
     if(requestHeader.correlationId() != responseHeader.correlationId())
       throw new IllegalStateException("Correlation id for response (" + responseHeader.correlationId() + ") does not match request (" + requestHeader.correlationId() + ")");
 	}
 	
-	private InFlightRequest metadataRequest(Set<String> topics) {
+	/**
+	 * Create a metadata request for the given topics
+	 */
+	private InFlightRequest metadataRequest(int node, Set<String> topics) {
 	  String[] ts = new String[topics.size()];
 	  topics.toArray(ts);
 	  Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.METADATA.id));
-	  body.set("topics", topics);
-	  int node = cluster.nextNode().id();
+	  body.set("topics", topics.toArray());
 	  RequestSend send = new RequestSend(node, new RequestHeader(ApiKeys.METADATA.id, clientId, correlation++), body);
 	  return new InFlightRequest(send, null);
 	}
 	
-	private void collate(Cluster cluster, List<RecordBatch> batches, List<NetworkSend> sends) {
+	/**
+	 * Collate the record batches into a list of produce requests on a per-node basis
+	 */
+	private List<InFlightRequest> collate(Cluster cluster, List<RecordBatch> batches) {
 	  Map<Integer, List<RecordBatch>> collated = new HashMap<Integer, List<RecordBatch>>();
 		for(RecordBatch batch: batches) {
 		  Node node = cluster.leaderFor(batch.topicPartition);
@@ -210,13 +301,15 @@ public class Sender implements Runnable {
 		  }
 		  found.add(batch); 
 		}
-		for(Map.Entry<Integer, List<RecordBatch>> entry: collated.entrySet()) {
-		  InFlightRequest request = produceRequest(entry.getKey(), acks, requestTimeout, entry.getValue());
-		  sends.add(request.request);
-		  this.inFlightRequests.add(request);
-		}
+		List<InFlightRequest> requests = new ArrayList<InFlightRequest>(collated.size());
+		for(Map.Entry<Integer, List<RecordBatch>> entry: collated.entrySet())
+		  requests.add(produceRequest(entry.getKey(), acks, requestTimeout, entry.getValue()));
+		return requests;
 	}
 	
+	/**
+	 * Create a produce request from the given record batches
+	 */
 	private InFlightRequest produceRequest(int destination, short acks, int timeout, List<RecordBatch> batches) {
 	  Map<TopicPartition, RecordBatch> batchesByPartition = new HashMap<TopicPartition, RecordBatch>();
 	  Map<String, List<RecordBatch>> batchesByTopic = new HashMap<String, List<RecordBatch>>();
@@ -235,42 +328,82 @@ public class Sender implements Runnable {
 	  List<Struct> topicDatas = new ArrayList<Struct>(batchesByTopic.size());
 	  for(Map.Entry<String, List<RecordBatch>> entry: batchesByTopic.entrySet()) {
 	    Struct topicData = produce.instance("topic_data");
-	    topicData.set("topic_name", entry.getKey());
-	    List<Struct> partitionData = new ArrayList<Struct>();
-	    for(RecordBatch batch: entry.getValue()) {
+	    topicData.set("topic", entry.getKey());
+	    List<RecordBatch> parts = entry.getValue();
+	    Object[] partitionData = new Object[parts.size()];
+	    for(int i = 0; i < parts.size(); i++) {
 	      Struct part = 
 	          topicData.instance("data")
-	                   .set("partition", batch.topicPartition.partition())
-	                   .set("message_set", batch.records.buffer());
- 	      partitionData.add(part);
+	                   .set("partition", parts.get(i).topicPartition.partition())
+	                   .set("message_set", parts.get(i).records.buffer());
+ 	      partitionData[i] = part;
 	    }
-	    topicData.set("topic_data", partitionData);
+	    topicData.set("data", partitionData);
 	    topicDatas.add(topicData);
 	  }
-	  produce.set("topic_data", topicDatas);
+	  produce.set("topic_data", topicDatas.toArray());
 	  
 	  RequestHeader header = new RequestHeader(ApiKeys.PRODUCE.id, clientId, correlation++);
 	  RequestSend send = new RequestSend(destination, header, produce);
 	  return new InFlightRequest(send, batchesByPartition);
 	}
 	
+	/**
+	 * Wake up the selector associated with this send thread
+	 */
 	void wakeup() {
 		this.selector.wakeup();
 	}
 	
-	private class InFlightRequest {
+	/**
+	 * The states of a node connection
+	 */
+	private static enum ConnectionState {UNKNOWN, CONNECTING, CONNECTED}
+	
+	/**
+	 * The state of a node
+	 */
+	private static final class NodeState {
+	  private ConnectionState state;
+	  private long lastConnectAttempt;
+	    
+	  public NodeState(ConnectionState state, long lastConnectAttempt) {
+	    this.state = state;
+	    this.lastConnectAttempt = lastConnectAttempt;
+	  }
+	  
+	  public String toString() {
+	    return "NodeState(" + state + ", " + lastConnectAttempt + ")";
+	  }
+	}
+	
+	/**
+	 * An request that hasn't been fully processed yet
+	 */
+	private static final class InFlightRequest {
 	  public Map<TopicPartition, RecordBatch> batches;
 	  public RequestSend request;
 	  
+	  /**
+	   * @param request The request
+	   * @param batches The record batches contained in the request if it is a produce request
+	   */
 	  public InFlightRequest(RequestSend request, Map<TopicPartition, RecordBatch> batches) {
 	    this.batches = batches;
 	    this.request = request;
 	  }
 	}
 	
-	private class InFlightRequests {
-	  private final Map<Integer, Deque<InFlightRequest>> requests = new HashMap<Integer, Deque<InFlightRequest>>();
+	/**
+	 * A set of outstanding request queues for each node that have not yet received responses
+	 */
+	private static final class InFlightRequests {
+	  private final Map<Integer, Deque<InFlightRequest>> requests = 
+	      new HashMap<Integer, Deque<InFlightRequest>>();
 	  
+	  /**
+	   * Add the given request to the queue for the node it was directed to
+	   */
 	  public void add(InFlightRequest request) {
 	    Deque<InFlightRequest> reqs = this.requests.get(request.request.destination());
 	    if(reqs == null) {
@@ -280,6 +413,9 @@ public class Sender implements Runnable {
 	    reqs.addFirst(request);
 	  }
 	  
+	  /**
+	   * Get the oldest request (the one that that will be completed next) for the given node
+	   */
 	  public InFlightRequest nextCompleted(int node) {
 	    Deque<InFlightRequest> reqs = requests.get(node);
 	    if(reqs == null || reqs.isEmpty())
@@ -287,11 +423,21 @@ public class Sender implements Runnable {
 	    return reqs.pollLast();
 	  }
 	  
+	  /**
+	   * Can we send more requests to this node? 
+	   * @param node Node in question
+	   * @return true iff we have no requests still being sent to the given node
+	   */
 	  public boolean canSendMore(int node) {
 	    Deque<InFlightRequest> queue = requests.get(node);
-	    return queue != null && !queue.isEmpty() && queue.peekFirst().request.remaining() > 0;
+	    return  queue == null || queue.isEmpty() || queue.peekFirst().request.complete();
 	  }
 	  
+	  /**
+	   * Clear out all the in-flight requests for the given node and return them
+	   * @param node The node
+	   * @return All the in-flight requests for that node that have been removed
+	   */
 	  public Iterable<InFlightRequest> clearAll(int node) {
 	    Deque<InFlightRequest> reqs = requests.get(node);
 	    if(reqs == null) {

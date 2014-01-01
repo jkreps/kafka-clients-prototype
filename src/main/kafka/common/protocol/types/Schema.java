@@ -32,10 +32,10 @@ public class Schema extends Type {
     	for(int i = 0; i < fields.length; i++) {
     		Field f = fields[i];
     		try {
-      		Object value = validate(r.get(f));
+      		Object value = f.type().validate(r.get(f));
     	  	f.type.write(buffer, value);
     		} catch(Exception e) {
-    		  throw new SchemaException("Error writing field '" + f.name + "': " + e.getMessage());
+    		  throw new SchemaException("Error writing field '" + f.name + "': " + e.getMessage() == null? e.getMessage() : e.getClass().getName());
     		}
     	}
     }

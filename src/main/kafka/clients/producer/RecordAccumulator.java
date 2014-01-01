@@ -3,12 +3,15 @@ package kafka.clients.producer;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
@@ -24,30 +27,30 @@ import kafka.common.utils.Utils;
  */
 public final class RecordAccumulator {
 	
-  private int drainIndex = 0;
+  private volatile boolean closed;
+  private int drainIndex;
 	private final int batchSize;
 	private final long lingerMs;
-	private final ConcurrentMap<TopicPartition, Deque<RecordBatch>> batches;
+	private final AtomicReference<Map<TopicPartition, Deque<RecordBatch>>> batches;
 	private final BufferPool free;
 	private final Time time;
 	
 	public RecordAccumulator(int batchSize, int totalSize, long lingerMs, Time time) {
+	  this.drainIndex = 0;
+	  this.closed = false;
 		this.batchSize = batchSize;
 		this.lingerMs = lingerMs;
-		this.batches = new ConcurrentHashMap<TopicPartition, Deque<RecordBatch>>();
+		this.batches = new AtomicReference<Map<TopicPartition, Deque<RecordBatch>>>(new HashMap<TopicPartition, Deque<RecordBatch>>());
 		this.free = new BufferPool(totalSize, batchSize);
 		this.time = time;
 	}
 	
 	/**
 	 * Add a record to the accumulator
-	 * @param tp The topic-partition to add the record to
-	 * @param key The record's key
-	 * @param value The record's value
-	 * @param callback The callback to be executed on completion of the request (or null if none)
-	 * @return The pending record send object
 	 */
 	public RecordSend append(TopicPartition tp, byte[] key, byte[] value, CompressionType compression, Callback callback) throws InterruptedException {
+	  if(closed)
+	    throw new IllegalStateException("Cannot send after the producer is closed.");
 		// check if we have an in-progress batch
 		Deque<RecordBatch> dq = dequeFor(tp);
 		synchronized(dq) {
@@ -60,7 +63,7 @@ public final class RecordAccumulator {
 		}
 		
     // we don't have an in-progress record batch try to allocate a new batch
-    int size = Math.max(this.batchSize, Records.LOG_OVERHEAD + Record.recordSize(key.length, value.length));
+    int size = Math.max(this.batchSize, Records.LOG_OVERHEAD + Record.recordSize(key, value));
     ByteBuffer buffer = free.allocate(size);
     synchronized(dq) {
   	  RecordBatch first = dq.peekLast();
@@ -81,20 +84,18 @@ public final class RecordAccumulator {
 	
 	/**
 	 * Get a list of topic-partitions which are ready to be sent
-	 * @param now The current time
-	 * @return A list of topic-partitions
 	 */
 	public List<TopicPartition> ready(long now) {
 		List<TopicPartition> ready = new ArrayList<TopicPartition>();
     boolean exhausted = this.free.queued() > 0;
-		for(Map.Entry<TopicPartition, Deque<RecordBatch>> entry: this.batches.entrySet()) {
+		for(Map.Entry<TopicPartition, Deque<RecordBatch>> entry: this.batches.get().entrySet()) {
 			Deque<RecordBatch> deque = entry.getValue();
 			synchronized(deque) {
 				RecordBatch batch = deque.peekFirst();
 				if(batch != null) {
 				  boolean full = deque.size() > 1;
 				  boolean expired = now - batch.created >= lingerMs;
-				  if(full | expired | exhausted)
+				  if(full | expired | exhausted | closed)
 					  ready.add(batch.topicPartition);
 				}
 			}
@@ -104,8 +105,6 @@ public final class RecordAccumulator {
 	
 	/**
 	 * Drain all the data for the given topic-partitions
-	 * @param partitions The topic-partitions to drain
-	 * @return The list of batches
 	 * TODO: There may be a starvation issue due to iteration order
 	 */
 	public List<RecordBatch> drain(List<TopicPartition> partitions, int maxSize) {
@@ -117,7 +116,7 @@ public final class RecordAccumulator {
 		int start = drainIndex = drainIndex % partitions.size();
 		do {
 		  TopicPartition tp = partitions.get(drainIndex);
-			Deque<RecordBatch> deque = this.batches.get(tp);
+			Deque<RecordBatch> deque = dequeFor(tp);
 			if(deque != null) {
 				synchronized(deque) {
 					if(size + deque.peekFirst().records.sizeInBytes() > maxSize) {
@@ -136,27 +135,46 @@ public final class RecordAccumulator {
 	
 	/**
 	 * Get the deque for the given topic-partition, creating it if necessary
-	 * @param tp The topic partition
-	 * @return The deque
 	 */
-	private Deque<RecordBatch> dequeFor(TopicPartition tp) {
-		Deque<RecordBatch> d = this.batches.get(tp);
-		if(d == null) {
-			this.batches.putIfAbsent(tp, new ArrayDeque<RecordBatch>());
-			d = this.batches.get(tp);
-		}
-		return d;
-	}
+  private Deque<RecordBatch> dequeFor(TopicPartition tp) {
+    Deque<RecordBatch> d = this.batches.get().get(tp);
+    if(d != null)
+      return d;
+    
+    // copy-on-write the map
+    Deque<RecordBatch> deque = new ArrayDeque<RecordBatch>();
+    while(true) {
+      Map<TopicPartition, Deque<RecordBatch>> map = this.batches.get();
+      Map<TopicPartition, Deque<RecordBatch>> copy = new HashMap<TopicPartition, Deque<RecordBatch>>(map);
+      Deque<RecordBatch> prev = copy.put(tp, deque);
+      // if there was already something there then the just use that (another thread got there)
+      if(prev != null)
+        return prev; 
+      // only update the reference if someone else hasn't already
+      boolean updated = this.batches.compareAndSet(map, copy);
+      if(updated)
+        return deque;
+    }
+  }
 	
 	/**
 	 * Deallocate the list of record batches
-	 * @param batches The batches to deallocate
 	 */
-	public void deallocate(List<RecordBatch> batches) {
+	public void deallocate(Collection<RecordBatch> batches) {
 	  ByteBuffer[] buffers = new ByteBuffer[batches.size()];
-	  for(int i = 0; i < batches.size(); i++)
-	    buffers[i] = batches.get(i).records.buffer();
+	  int i = 0;
+	  for(RecordBatch batch: batches) {
+	    buffers[i] = batch.records.buffer();
+	    i++;
+	  }
 	  free.deallocate(buffers);
+	}
+	
+	/**
+	 * Close this accumulator and force all the record buffers to be drained
+	 */
+	public void close() {
+	  this.closed = true;
 	}
 	
 }

@@ -160,6 +160,7 @@ public class SelectorTest {
         String[] pieces = asString(receive).split("-");
         assertEquals("Should be in the form 'conn-counter'", 2, pieces.length);
         assertEquals("Check the source", receive.source(), Integer.parseInt(pieces[0]));
+        assertEquals("Check that the receive has kindly been rewound", 0, receive.payload().position());
         assertEquals("Check the request counter", responses[receive.source()], Integer.parseInt(pieces[1]));
         responses[receive.source()]++; // increment the expected counter
         responseCount++;

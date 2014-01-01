@@ -1,16 +1,25 @@
-1. Handle record larger than batch size
-2. SerializingSelector
-3. Matching requests to responses...
 
-Notes
+Thoughts
 - Should the client api take objects or bytes?
-- Partitioner should also take raw bytes
+- Partitioner should also take raw bytes?
+- Move non-public classs in public packages to an "internals" package?
 
 Issues
 - Client-driven topic creation...
 - What if node host/port changes dynamically
-- Ensure client shutdown waits on all data being sent
 - Sender may be unfair in selecting topic/partitions
 
-Testing
-RecordBuffers
+TODO
+Fix tests
+Finish config
+Integrate into main code base
+Metrics
+Flesh out unit tests
+Deeper perf testing
+Compression
+Optimize serialization
+Figure out packages
+Learn javadoc
+Code layout
+
+
