@@ -27,6 +27,7 @@ public class BufferPoolTest {
     assertEquals("Unallocated memory should have shrunk", totalMemory - size, pool.unallocatedMemory());
     assertEquals("Available memory should have shrunk", totalMemory - size, pool.availableMemory());
     buffer.putInt(1);
+    buffer.flip();
     pool.deallocate(buffer);
     assertEquals("All memory should be available", totalMemory, pool.availableMemory());
     assertEquals("But now some is on the free list", totalMemory - size, pool.unallocatedMemory());

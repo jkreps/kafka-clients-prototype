@@ -35,7 +35,7 @@ public final class RecordAccumulator {
 	private final BufferPool free;
 	private final Time time;
 	
-	public RecordAccumulator(int batchSize, int totalSize, long lingerMs, Time time) {
+	public RecordAccumulator(int batchSize, long totalSize, long lingerMs, Time time) {
 	  this.drainIndex = 0;
 	  this.closed = false;
 		this.batchSize = batchSize;

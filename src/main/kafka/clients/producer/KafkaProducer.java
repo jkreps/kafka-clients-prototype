@@ -3,20 +3,20 @@ package kafka.clients.producer;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
-import kafka.clients.common.network.Selectable;
 import kafka.clients.common.network.Selector;
 import kafka.common.BytesSerialization;
 import kafka.common.Cluster;
 import kafka.common.KafkaException;
 import kafka.common.Serializer;
-import kafka.common.StringSerialization;
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
 import kafka.common.utils.KafkaThread;
 import kafka.common.utils.SystemTime;
-import kafka.common.utils.Time;
+
+import static kafka.clients.producer.ProducerConfig.*;
 
 /**
  * A Kafka producer that can be used to send data to the Kafka cluster. The producer
@@ -32,22 +32,45 @@ public class KafkaProducer implements Producer {
   private final Serializer valSerializer = new BytesSerialization();
   private final Thread ioThread;
   
+  /**
+   * The producer configuration. Valid configuration keys are documented <a href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>.
+   * Values can be either strings or Objects of the appropriate type (String, Integer, Long, Double, List, Class).
+   */
+  public KafkaProducer(Map<String, Object> configs) {
+    this(new ProducerConfig(configs));
+  }
+  
+  /**
+   * The producer configuration. Valid configuration keys are documented <a href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>.
+   */
   public KafkaProducer(Properties properties) {
-    // TODO: move to better config object
-    // TODO: check property names 
-    int batchSize = Integer.parseInt(properties.getProperty("batch.size", Integer.toString(64*1024)));
-    int totalSize = Integer.parseInt(properties.getProperty("total.memory", Integer.toString(5*1024*1024)));
-    int lingerMs = Integer.parseInt(properties.getProperty("linger.ms", Integer.toString(0)));
-    int maxRequestSize = Integer.parseInt(properties.getProperty("max.request.size", Integer.toString(10*1024*1024)));
-    int requestTimeout = Integer.parseInt(properties.getProperty("request.timeout", Integer.toString(30*1000)));
-    int reconnectBackoff = Integer.parseInt(properties.getProperty("reconnect.backoff", Integer.toString(10)));
-    String clientId = properties.getProperty("client.id", "");
-    short numAcks = Short.parseShort(properties.getProperty("num.acks", "-1"));
-    this.accumulator = new RecordAccumulator(batchSize, totalSize, lingerMs, new SystemTime());
-    String[] urls = properties.getProperty("metadata.broker.list").split(",");
+    this(new ProducerConfig(properties));
+  }
+  
+  private KafkaProducer(ProducerConfig config) {
+    this.accumulator = new RecordAccumulator(config.getInt(MAX_PARTITION_SIZE_CONFIG), 
+                                             config.getLong(TOTAL_BUFFER_MEMORY_CONFIG),
+                                             config.getLong(LINGER_MS_CONFIG),
+                                             new SystemTime());
+    List<InetSocketAddress> urls = parseAddresses(config.getList(BROKER_LIST_CONFIG));
+    this.metadata.update(Cluster.bootstrap(urls), System.currentTimeMillis());
+    this.sender = new Sender(new Selector(),
+                             this.metadata,
+                             this.accumulator,
+                             config.getString(CLIENT_ID_CONFIG),
+                             config.getInt(MAX_REQUEST_SIZE_CONFIG),
+                             config.getLong(RECONNECT_BACKOFF_MS_CONFIG),
+                             (short) config.getInt(REQUIRED_ACKS_CONFIG),
+                             config.getInt(REQUEST_TIMEOUT_CONFIG),
+                             new SystemTime());
+    this.ioThread = new KafkaThread("kafka-network-thread", this.sender, false);
+    this.ioThread.start();
+  }
+  
+  private static List<InetSocketAddress> parseAddresses(List<String> urls) {
     List<InetSocketAddress> addresses = new ArrayList<InetSocketAddress>();
     for(String url: urls) {
-      if(url != null && url.trim().length() > 0) {
+      if(url != null && url.length() > 0) {
         String[] pieces = url.split(":");
         if(pieces.length != 2)
           throw new IllegalArgumentException("Invalid url in metadata.broker.list: " + url);
@@ -61,18 +84,7 @@ public class KafkaProducer implements Producer {
     }
     if(addresses.size() < 1)
       throw new IllegalArgumentException("No bootstrap urls given in metadata.broker.list.");
-    this.metadata.update(Cluster.bootstrap(addresses), System.currentTimeMillis());
-    this.sender = new Sender(new Selector(),
-                             this.metadata,
-                             this.accumulator,
-                             clientId,
-                             maxRequestSize,
-                             reconnectBackoff,
-                             numAcks,
-                             requestTimeout,
-                             new SystemTime());
-    this.ioThread = new KafkaThread("kafka-network-thread", this.sender, false);
-    this.ioThread.start();
+    return addresses;
   }
   
   /**

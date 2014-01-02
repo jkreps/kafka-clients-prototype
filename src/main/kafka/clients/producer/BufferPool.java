@@ -163,7 +163,7 @@ public final class BufferPool {
     lock.lock();
     try {
       for(int i = 0; i < buffers.length; i++) {
-        int size = buffers[i].limit();
+        int size = buffers[i].capacity();
         if(size == this.poolableSize) {
           buffers[i].clear();
           this.free.add(buffers[i]);

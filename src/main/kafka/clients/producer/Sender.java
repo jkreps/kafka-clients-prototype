@@ -124,7 +124,7 @@ public class Sender implements Runnable {
     
     // do the I/O
     try {
-      this.selector.poll(1000L, sends);
+      this.selector.poll(5L, sends);
     } catch(IOException e) {
       e.printStackTrace();
     }
@@ -142,7 +142,7 @@ public class Sender implements Runnable {
 	    return null;
 	  Node node = cluster.nextNode();
     NodeState state = nodeState.get(node.id());
-    if(state == null || (state.state == ConnectionState.UNKNOWN && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
+    if(state == null || (state.state == ConnectionState.DISCONNECTED && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
       // we don't have a connection to this node right now, make one
       initiateConnect(node, now);
       return null;
@@ -176,7 +176,7 @@ public class Sender implements Runnable {
       } else {
         NodeState state = nodeState.get(node.id());
         // TODO: encapsulate this logic somehow 
-        if(state == null || (state.state == ConnectionState.UNKNOWN && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
+        if(state == null || (state.state == ConnectionState.DISCONNECTED && now - state.lastConnectAttempt > this.reconnectBackoffMs)) {
           // we don't have a connection to this node right now, make one
           initiateConnect(node, now);
         } else if(state.state == ConnectionState.CONNECTED && inFlightRequests.canSendMore(node.id())) {
@@ -196,7 +196,7 @@ public class Sender implements Runnable {
       nodeState.put(node.id(), new NodeState(ConnectionState.CONNECTING, now));
     } catch(IOException e) {
        /* attempt failed, we'll try again after the backoff */
-      nodeState.put(node.id(), new NodeState(ConnectionState.UNKNOWN, now));
+      nodeState.put(node.id(), new NodeState(ConnectionState.DISCONNECTED, now));
       /* maybe the problem is our metadata, update it */
       metadata.forceUpdate();
     }
@@ -211,7 +211,11 @@ public class Sender implements Runnable {
   	    if(request.batches != null) {
   	      for(RecordBatch batch: request.batches.values())
   	        batch.done(-1L, new NetworkException("The server disconnected unexpectedly without sending a response."));
+  	      this.accumulator.deallocate(request.batches.values());
   	    }
+  	    NodeState state = this.nodeState.get(request.request.destination());
+  	    if(state != null)
+  	      state.state = ConnectionState.DISCONNECTED;
   	  }
 	  }
 	}
@@ -361,7 +365,7 @@ public class Sender implements Runnable {
 	/**
 	 * The states of a node connection
 	 */
-	private static enum ConnectionState {UNKNOWN, CONNECTING, CONNECTED}
+	private static enum ConnectionState {DISCONNECTED, CONNECTING, CONNECTED}
 	
 	/**
 	 * The state of a node

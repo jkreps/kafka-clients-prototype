@@ -10,6 +10,8 @@ Issues
 - Sender may be unfair in selecting topic/partitions
 
 TODO
+Fail on buffer exhaustion
+Wakeup selector
 Fix tests
 Finish config
 Integrate into main code base

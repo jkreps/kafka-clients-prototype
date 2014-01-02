@@ -1,6 +1,7 @@
 package kafka.clients.common.network;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.channels.CancelledKeyException;
@@ -164,7 +165,7 @@ public class Selector implements Selectable {
   				if(key.isConnectable()) {
   					channel.finishConnect();
   					key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
-  		      this.connected.add(transmissions.id);
+ 	  	      this.connected.add(transmissions.id);
   				}
   			    
   				/* read from any connections that have readable data */

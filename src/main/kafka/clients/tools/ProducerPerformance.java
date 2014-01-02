@@ -5,8 +5,10 @@ import java.util.Properties;
 
 import kafka.clients.producer.Callback;
 import kafka.clients.producer.KafkaProducer;
+import kafka.clients.producer.ProducerConfig;
 import kafka.clients.producer.ProducerRecord;
 import kafka.clients.producer.RecordSend;
+import kafka.common.BytesSerialization;
 
 public class ProducerPerformance {
 
@@ -19,10 +21,12 @@ public class ProducerPerformance {
     int numMessages = Integer.parseInt(args[1]);
     int messageSize = Integer.parseInt(args[2]);
     Properties props = new Properties();
-    props.setProperty("num.acks", "1");
+    props.setProperty(ProducerConfig.REQUIRED_ACKS_CONFIG, "1");
     //props.setProperty("linger.ms", "5");
-    props.setProperty("metadata.broker.list", url);
-    props.setProperty("request.timeout", Integer.toString(Integer.MAX_VALUE));
+    props.setProperty(ProducerConfig.BROKER_LIST_CONFIG, url);
+    props.setProperty(ProducerConfig.REQUEST_TIMEOUT_CONFIG, Integer.toString(Integer.MAX_VALUE));
+    props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, BytesSerialization.class.getName());
+    props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, BytesSerialization.class.getName());
     
     KafkaProducer producer = new KafkaProducer(props);
     Callback callback = new Callback() {
