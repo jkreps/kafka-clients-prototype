@@ -78,7 +78,7 @@ public class Sender implements Runnable {
      * The main run loop for the sender thread
      */
     public void run() {
-        // main loop
+        // main loop, runs until close is called
         while (running) {
             try {
                 run(time.milliseconds());
@@ -86,9 +86,16 @@ public class Sender implements Runnable {
                 e.printStackTrace();
             }
         }
+
         // send anything left in the accumulator
-        while (run(time.milliseconds()) > 0)
-            ;
+        int unsent = 0;
+        do {
+            try {
+                unsent = run(time.milliseconds());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } while (unsent > 0);
 
         // close all the connections
         this.selector.close();
@@ -133,6 +140,7 @@ public class Sender implements Runnable {
         }
 
         // handle responses, connections, and disconnections
+        handleSends(this.selector.completedSends());
         handleResponses(this.selector.completedReceives(), now);
         handleDisconnects(this.selector.disconnected());
         handleConnects(this.selector.connected());
@@ -235,6 +243,25 @@ public class Sender implements Runnable {
     }
 
     /**
+     * Process completed sends
+     */
+    public void handleSends(List<NetworkSend> sends) {
+        /* if acks = 0 then the request is satisfied once sent */
+        for (NetworkSend send : sends) {
+            Deque<InFlightRequest> requests = this.inFlightRequests.requestQueue(send.destination());
+            InFlightRequest request = requests.peekFirst();
+            if (!request.expectResponse) {
+                requests.pollFirst();
+                if (request.request.header().apiKey() == ApiKeys.PRODUCE.id) {
+                    for (RecordBatch batch : request.batches.values())
+                        batch.done(-1L, Errors.NONE.exception());
+                    this.accumulator.deallocate(request.batches.values());
+                }
+            }
+        }
+    }
+
+    /**
      * Handle responses from the server
      */
     private void handleResponses(List<NetworkReceive> receives, long now) {
@@ -298,7 +325,7 @@ public class Sender implements Runnable {
         Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.METADATA.id));
         body.set("topics", topics.toArray());
         RequestSend send = new RequestSend(node, new RequestHeader(ApiKeys.METADATA.id, clientId, correlation++), body);
-        return new InFlightRequest(send, null);
+        return new InFlightRequest(true, send, null);
     }
 
     /**
@@ -360,7 +387,7 @@ public class Sender implements Runnable {
 
         RequestHeader header = new RequestHeader(ApiKeys.PRODUCE.id, clientId, correlation++);
         RequestSend send = new RequestSend(destination, header, produce);
-        return new InFlightRequest(send, batchesByPartition);
+        return new InFlightRequest(acks != 0, send, batchesByPartition);
     }
 
     /**
@@ -398,16 +425,19 @@ public class Sender implements Runnable {
      * An request that hasn't been fully processed yet
      */
     private static final class InFlightRequest {
+        public boolean expectResponse;
         public Map<TopicPartition, RecordBatch> batches;
         public RequestSend request;
 
         /**
+         * @param expectResponse Should we expect a response message or is this request complete once it is sent?
          * @param request The request
          * @param batches The record batches contained in the request if it is a produce request
          */
-        public InFlightRequest(RequestSend request, Map<TopicPartition, RecordBatch> batches) {
+        public InFlightRequest(boolean expectResponse, RequestSend request, Map<TopicPartition, RecordBatch> batches) {
             this.batches = batches;
             this.request = request;
+            this.expectResponse = expectResponse;
         }
     }
 
@@ -429,14 +459,18 @@ public class Sender implements Runnable {
             reqs.addFirst(request);
         }
 
+        public Deque<InFlightRequest> requestQueue(int node) {
+            Deque<InFlightRequest> reqs = requests.get(node);
+            if (reqs == null || reqs.isEmpty())
+                throw new IllegalStateException("Response from server for which there are no in-flight requests.");
+            return reqs;
+        }
+
         /**
          * Get the oldest request (the one that that will be completed next) for the given node
          */
         public InFlightRequest nextCompleted(int node) {
-            Deque<InFlightRequest> reqs = requests.get(node);
-            if (reqs == null || reqs.isEmpty())
-                throw new IllegalStateException("Response from server for which there are no in-flight requests.");
-            return reqs.pollLast();
+            return requestQueue(node).pollLast();
         }
 
         /**

@@ -52,9 +52,11 @@ public class SenderTest {
         RecordSend send = accumulator.append(tp, "key".getBytes(), "value".getBytes(), CompressionType.NONE, null);
         sender.run(time.milliseconds());
         assertEquals("We should have connected", 1, selector.connected().size());
+        selector.clear();
         sender.run(time.milliseconds());
         assertEquals("Single request should be sent", 1, selector.completedSends().size());
         RequestSend request = (RequestSend) selector.completedSends().get(0);
+        selector.clear();
         long offset = 42;
         selector.completeReceive(produceResponse(request.header().correlationId(),
                                                  cluster.leaderFor(tp).id(),

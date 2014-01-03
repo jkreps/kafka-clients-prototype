@@ -96,7 +96,7 @@ public class KafkaProducer implements Producer {
                                  (short) config.getInt(REQUIRED_ACKS_CONFIG),
                                  config.getInt(REQUEST_TIMEOUT_CONFIG),
                                  new SystemTime());
-        this.ioThread = new KafkaThread("kafka-network-thread", this.sender, false);
+        this.ioThread = new KafkaThread("kafka-network-thread", this.sender, true);
         this.ioThread.start();
     }
 
