@@ -3,6 +3,7 @@ package kafka.clients.producer;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import kafka.clients.producer.internals.Metadata;
 import kafka.common.Cluster;
 import kafka.common.Node;
 import kafka.common.PartitionInfo;

@@ -1,4 +1,4 @@
-package kafka.clients.producer;
+package kafka.clients.producer.internals;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import kafka.clients.producer.Callback;
+import kafka.clients.producer.RecordSend;
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
 import kafka.common.record.MemoryRecords;

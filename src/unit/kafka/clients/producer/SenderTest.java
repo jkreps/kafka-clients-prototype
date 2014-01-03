@@ -7,6 +7,9 @@ import static org.junit.Assert.assertTrue;
 import java.nio.ByteBuffer;
 
 import kafka.clients.common.network.NetworkReceive;
+import kafka.clients.producer.internals.Metadata;
+import kafka.clients.producer.internals.RecordAccumulator;
+import kafka.clients.producer.internals.Sender;
 import kafka.common.Cluster;
 import kafka.common.Node;
 import kafka.common.PartitionInfo;

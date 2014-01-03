@@ -2,6 +2,7 @@ package kafka.clients.producer;
 
 import java.util.concurrent.TimeUnit;
 
+import kafka.clients.producer.internals.ProduceRequestResult;
 import kafka.common.errors.ApiException;
 import kafka.common.errors.TimeoutException;
 
@@ -15,7 +16,7 @@ public final class RecordSend {
     private final long relativeOffset;
     private final ProduceRequestResult result;
 
-    RecordSend(long relativeOffset, ProduceRequestResult result) {
+    public RecordSend(long relativeOffset, ProduceRequestResult result) {
         this.relativeOffset = relativeOffset;
         this.result = result;
     }

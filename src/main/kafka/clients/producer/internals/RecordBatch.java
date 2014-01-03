@@ -1,8 +1,10 @@
-package kafka.clients.producer;
+package kafka.clients.producer.internals;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import kafka.clients.producer.Callback;
+import kafka.clients.producer.RecordSend;
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
 import kafka.common.record.MemoryRecords;

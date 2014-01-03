@@ -1,10 +1,12 @@
-package kafka.clients.producer;
+package kafka.clients.producer.internals;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+
+import kafka.clients.producer.BufferExhaustedException;
 
 /**
  * A pool of ByteBuffers kept under a given memory limit. This class is fairly specific to the needs of the producer. In

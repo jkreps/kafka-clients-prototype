@@ -1,4 +1,4 @@
-package kafka.clients.producer;
+package kafka.clients.producer.internals;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

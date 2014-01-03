@@ -1,4 +1,4 @@
-package kafka.clients.producer;
+package kafka.clients.producer.internals;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -99,7 +99,7 @@ public class Sender implements Runnable {
      * @param now The current time
      * @return The total number of topic/partitions that had data ready (regardless of what we actually sent)
      */
-    int run(long now) {
+    public int run(long now) {
         Cluster cluster = metadata.fetch();
         // get the list of partitions with data ready to send
         List<TopicPartition> ready = this.accumulator.ready(now);
@@ -365,7 +365,7 @@ public class Sender implements Runnable {
     /**
      * Wake up the selector associated with this send thread
      */
-    void wakeup() {
+    public void wakeup() {
         this.selector.wakeup();
     }
 

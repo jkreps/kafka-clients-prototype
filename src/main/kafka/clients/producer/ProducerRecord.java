@@ -64,7 +64,7 @@ public final class ProducerRecord {
      * @return The key to use for partitioning: the partitionKey if one is specified, otherwise the regular key
      */
     public Object partitionKey() {
-        return partitionKey == null ? key : partitionKey;
+        return partitionKey;
     }
 
     /**

@@ -10,20 +10,20 @@ Issues
 - Sender may be unfair in selecting topic/partitions
 
 TODO
-- Partition by bytes not object
 - Integrate into main code base
+- Reconsider bootstrap
 - Metrics
 - Flesh out unit tests
 - Deeper perf testing
 - Compression
+- Retries
 - Optimize serialization
-- Figure out packages
 - Improve javadoc
-- Code layout
+- Handle acks=0
 
 Discussion points
 - Configuration
 - Serialization
 - Readiness criteria
 - Logging: log4j vs slf4j vs jul
-
+- Code layout/packages

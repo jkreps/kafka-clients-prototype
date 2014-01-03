@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import kafka.clients.producer.internals.RecordAccumulator;
+import kafka.clients.producer.internals.RecordBatch;
 import kafka.common.TopicPartition;
 import kafka.common.record.CompressionType;
 import kafka.common.record.LogEntry;

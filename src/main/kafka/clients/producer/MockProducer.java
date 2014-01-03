@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import kafka.clients.producer.internals.ProduceRequestResult;
 import kafka.common.Cluster;
 import kafka.common.Serializer;
 import kafka.common.TopicPartition;
@@ -39,6 +40,8 @@ public class MockProducer implements Producer {
      *        send(ProducerRecord) send()} to complete the call and unblock the @{link RecordSend} that is returned.
      */
     public MockProducer(Serializer keySerializer, Serializer valueSerializer, Partitioner partitioner, Cluster cluster, boolean autoComplete) {
+        if (partitioner != null && (cluster == null | keySerializer == null | valueSerializer == null))
+            throw new IllegalArgumentException("If a partitioner is provided a cluster instance and key and value serializer for partitioning must also be given.");
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.partitioner = partitioner;
@@ -86,9 +89,10 @@ public class MockProducer implements Producer {
     @Override
     public synchronized RecordSend send(ProducerRecord record, Callback callback) {
         byte[] key = keySerializer == null ? null : keySerializer.toBytes(record.key());
+        byte[] partitionKey = keySerializer == null ? null : keySerializer.toBytes(record.partitionKey());
         byte[] value = valueSerializer == null ? null : valueSerializer.toBytes(record.value());
         int numPartitions = partitioner == null ? 0 : this.cluster.partitionsFor(record.topic()).size();
-        int partition = partitioner == null ? 0 : partitioner.partition(record, this.cluster, numPartitions);
+        int partition = partitioner == null ? 0 : partitioner.partition(record, key, partitionKey, value, this.cluster, numPartitions);
         ProduceRequestResult result = new ProduceRequestResult();
         RecordSend send = new RecordSend(0, result);
         long offset = nextOffset(new TopicPartition(record.topic(), partition));

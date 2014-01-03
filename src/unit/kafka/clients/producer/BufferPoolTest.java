@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import kafka.clients.producer.internals.BufferPool;
 import kafka.test.TestUtils;
 
 import org.junit.Test;

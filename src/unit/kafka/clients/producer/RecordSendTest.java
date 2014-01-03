@@ -7,6 +7,7 @@ import static org.junit.Assert.fail;
 
 import java.util.concurrent.TimeUnit;
 
+import kafka.clients.producer.internals.ProduceRequestResult;
 import kafka.common.errors.CorruptMessageException;
 import kafka.common.errors.TimeoutException;
 
