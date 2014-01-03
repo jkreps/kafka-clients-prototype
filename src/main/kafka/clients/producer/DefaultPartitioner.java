@@ -14,6 +14,9 @@ public class DefaultPartitioner implements Partitioner {
 
     private final AtomicInteger counter = new AtomicInteger(0);
 
+    /**
+     * Compute the partition
+     */
     @Override
     public int partition(ProducerRecord record, byte[] key, byte[] partitionKey, byte[] value, Cluster cluster, int numPartitions) {
         byte[] keyToUse = partitionKey != null ? partitionKey : key;

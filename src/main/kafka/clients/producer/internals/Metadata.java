@@ -9,8 +9,11 @@ import kafka.common.PartitionInfo;
 
 /**
  * A class encapsulating some of the logic around metadata.
+ * <p>
+ * This class is shared by the client thread (for partitioning) and the background sender thread.
  * 
- * Metadata is maintained for only a subset of topics, which can be added to over time.
+ * Metadata is maintained for only a subset of topics, which can be added to over time. When we request metdata for a
+ * topic we don't have any metadata for it will trigger a metadata update.
  */
 public final class Metadata {
 
@@ -29,6 +32,7 @@ public final class Metadata {
     }
 
     /**
+     * Create a new Metadata instance
      * @param refreshBackoffMs The minimum amount of time that must expire between metadata refreshes to avoid busy
      *        polling
      * @param metadataExpireMs The maximum amount of time that metadata can be retained without refresh
@@ -52,7 +56,6 @@ public final class Metadata {
     /**
      * Fetch cluster metadata including partitions for the given topic. If there is no metadata for the given topic,
      * block waiting for an update.
-     * 
      * @param topic The topic we want metadata for
      */
     public synchronized Cluster fetch(String topic) {

@@ -17,15 +17,18 @@ import java.util.Set;
 import kafka.common.KafkaException;
 
 /**
- * A selector interface for doing asynchronous I/O against multiple connections.
- * 
+ * A selector interface for doing non-blocking multi-connection network I/O.
+ * <p>
+ * This class works with {@link NetworkSend} and {@link NetworkReceive} to transmit size-delimited network requests and
+ * responses.
+ * <p>
  * A connection can be added to the selector associated with an integer id by doing
  * 
  * <pre>
  * selector.connect(42, new InetSocketAddress(&quot;google.com&quot;, server.port), 64000, 64000);
  * </pre>
  * 
- * The connect call does not block on the creation of the TCP connection, so the connect method only begins intitiating
+ * The connect call does not block on the creation of the TCP connection, so the connect method only begins initiating
  * the connection. The successful invocation of this method does not mean a valid connection has been established.
  * 
  * Sending requests, receiving responses, processing connection completions, and disconnections on the existing
@@ -50,6 +53,9 @@ public class Selector implements Selectable {
     private final List<Integer> disconnected;
     private final List<Integer> connected;
 
+    /**
+     * Create a new selector
+     */
     public Selector() {
         try {
             this.selector = java.nio.channels.Selector.open();
@@ -64,8 +70,11 @@ public class Selector implements Selectable {
     }
 
     /**
-     * Connect to the given address and connection to this selector associated with the given id number
-     * 
+     * Begin connecting to the given address and add the connection to this selector associated with the given id
+     * number.
+     * <p>
+     * Note that this call only initiates the connection, which will be completed on a future {@link #poll(long, List)}
+     * call. Check {@link #connected()} to see which (if any) connections have completed after a given poll call.
      * @param id The id for the new connection
      * @param address The address to connect to
      * @param sendBufferSize The send buffer for the new connection
@@ -92,7 +101,7 @@ public class Selector implements Selectable {
 
     /**
      * Disconnect any connections for the given id (if there are any). The disconnection is asynchronous and will not be
-     * processed until the next <code>poll()</code> invocation.
+     * processed until the next {@link #poll(long, List) poll()} call.
      */
     @Override
     public void disconnect(int id) {
@@ -102,7 +111,7 @@ public class Selector implements Selectable {
     }
 
     /**
-     * Interrupt the selector if it is waiting on I/O.
+     * Interrupt the selector if it is blocked waiting to do I/O.
      */
     @Override
     public void wakeup() {
@@ -129,11 +138,21 @@ public class Selector implements Selectable {
     }
 
     /**
-     * Attempt to begin sending the Sends in the send list and return any completed receives in receives list. When this
-     * call is completed the user can check for completed sends, receives, connections or disconnects.
+     * Do whatever I/O can be done on each connection without blocking. This includes completing connections, completing
+     * disconnections, initiating new sends, or making progress on in-progress sends or receives.
+     * <p>
+     * The provided network sends will be started.
+     * 
+     * When this call is completed the user can check for completed sends, receives, connections or disconnects using
+     * {@link #completedSends()}, {@link #completedReceives()}, {@link #connected()}, {@link #disconnected()}. These
+     * lists will be cleared at the beginning of each {@link #poll(long, List)} call and repopulated by the call if any
+     * completed I/O.
      * 
      * @param timeout The amount of time to wait, in milliseconds. If negative, wait indefinitely.
      * @param sends The list of new sends to begin
+     * 
+     * @throws IllegalStateException If a send is given for which we have no existing connection or for which there is
+     *         already an in-progress send
      */
     @Override
     public void poll(long timeout, List<NetworkSend> sends) throws IOException {
@@ -255,6 +274,9 @@ public class Selector implements Selectable {
             return this.selector.select(ms);
     }
 
+    /**
+     * Begin closing this connection
+     */
     private void close(SelectionKey key) throws IOException {
         SocketChannel channel = channel(key);
         Transmissions trans = transmissions(key);
@@ -266,6 +288,9 @@ public class Selector implements Selectable {
         channel.close();
     }
 
+    /**
+     * Get the selection key associated with this numeric id
+     */
     private SelectionKey keyForId(int id) {
         SelectionKey key = this.keys.get(id);
         if (key == null)
@@ -273,14 +298,23 @@ public class Selector implements Selectable {
         return key;
     }
 
+    /**
+     * Get the transmissions for the given connection
+     */
     private Transmissions transmissions(SelectionKey key) {
         return (Transmissions) key.attachment();
     }
 
+    /**
+     * Get the socket channel associated with this selection key
+     */
     private SocketChannel channel(SelectionKey key) {
         return (SocketChannel) key.channel();
     }
 
+    /**
+     * The id and in-progress send and receive associated with a connection
+     */
     private static class Transmissions {
         public int id;
         public NetworkSend send;

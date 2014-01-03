@@ -4,6 +4,9 @@ import java.nio.ByteBuffer;
 
 import kafka.common.utils.Utils;
 
+/**
+ * A record: a serialized key and value along with the associated CRC and other fields
+ */
 public final class Record {
 
     /**

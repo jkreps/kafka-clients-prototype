@@ -1,5 +1,8 @@
 package kafka.common;
 
+/**
+ * The base class of all other Kafka exceptions
+ */
 public class KafkaException extends RuntimeException {
 
     private final static long serialVersionUID = 1L;

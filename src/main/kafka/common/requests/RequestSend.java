@@ -5,6 +5,9 @@ import java.nio.ByteBuffer;
 import kafka.clients.common.network.NetworkSend;
 import kafka.common.protocol.types.Struct;
 
+/**
+ * A send object for a kafka request
+ */
 public class RequestSend extends NetworkSend {
 
     private final RequestHeader header;

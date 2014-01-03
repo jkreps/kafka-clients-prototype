@@ -1,7 +1,10 @@
 package kafka.clients.producer;
 
 /**
- * An unserialized key/value pair to be sent to Kafka.
+ * An unserialized key/value pair to be sent to Kafka. This consists of a topic name to which the record is being sent,
+ * a value (which can be null) which is the contents of the record and an optional key (which can also be null). In
+ * cases the key used for chosing a partition is going to be different the user can specify a partition key which will
+ * be used only for computing the partition to which this record will be sent and will not be retained with the record.
  */
 public final class ProducerRecord {
 
@@ -11,7 +14,8 @@ public final class ProducerRecord {
     private final Object value;
 
     /**
-     * Creates a record to be sent to Kafka using a special key for partitioning
+     * Creates a record to be sent to Kafka using a special override key for partitioning that is different form the key
+     * retained in the record
      * @param topic The topic the record will be appended to
      * @param key The key that will be included in the record
      * @param partitionKey An override for the key to be used only for partitioning purposes in the client. This key
@@ -61,7 +65,7 @@ public final class ProducerRecord {
     }
 
     /**
-     * @return The key to use for partitioning: the partitionKey if one is specified, otherwise the regular key
+     * An override key to use instead of the main record key
      */
     public Object partitionKey() {
         return partitionKey;

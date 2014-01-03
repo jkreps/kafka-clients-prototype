@@ -1,6 +1,9 @@
 package kafka.common;
 
-public class TopicPartition {
+/**
+ * A topic name and partition number
+ */
+public final class TopicPartition {
 
     private int hash = 0;
     private final int partition;

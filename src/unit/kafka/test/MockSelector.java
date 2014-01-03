@@ -10,6 +10,9 @@ import kafka.clients.common.network.NetworkSend;
 import kafka.clients.common.network.Selectable;
 import kafka.common.utils.Time;
 
+/**
+ * A fake selector to use for testing
+ */
 public class MockSelector implements Selectable {
 
     private final Time time;

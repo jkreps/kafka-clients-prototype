@@ -28,6 +28,14 @@ public final class BufferPool {
     private final Deque<Condition> waiters;
     private long availableMemory;
 
+    /**
+     * Create a new buffer pool
+     * @param memory The maximum amount of memory that this buffer pool can allocate
+     * @param poolableSize The buffer size to cache in the free list rather than deallocating
+     * @param blockOnExhaustion This controls the behavior when the buffer pool is out of memory. If true the
+     *        {@link #allocate(int)} call will block and wait for memory to be returned to the pool. If false
+     *        {@link #allocate(int)} will throw an exception if the buffer is out of memory.
+     */
     public BufferPool(long memory, int poolableSize, boolean blockOnExhaustion) {
         this.poolableSize = poolableSize;
         this.blockOnExhaustion = blockOnExhaustion;
@@ -40,11 +48,11 @@ public final class BufferPool {
 
     /**
      * Allocate a buffer of the given size
-     * 
-     * @param size The buffer size
+     * @param size The buffer size to allocate in bytes
      * @return The buffer
      * @throws InterruptedException If the thread is interrupted while blocked
-     * @throws IllegalArgument if size is larger than the total memory in the pool
+     * @throws IllegalArgument if size is larger than the total memory controlled by the pool (and hence we would block
+     *         forever)
      * @throws BufferExhaustedException if the pool is in non-blocking mode and size exceeds the free memory in the pool
      */
     public ByteBuffer allocate(int size) throws InterruptedException {
@@ -127,7 +135,8 @@ public final class BufferPool {
     }
 
     /**
-     * Attempt to free up size worth of memory for allocation by deallocating pooled buffers (if needed)
+     * Attempt to ensure we have at least the requested number of bytes of memory for allocation by deallocating pooled
+     * buffers (if needed)
      */
     private void freeUp(int size) {
         while (!this.free.isEmpty() && this.availableMemory < size)
@@ -137,7 +146,6 @@ public final class BufferPool {
     /**
      * Return buffers to the pool. If they are of the poolable size add them to the free list, otherwise just mark the
      * memory as free.
-     * 
      * @param buffers The buffers to return
      */
     public void deallocate(ByteBuffer... buffers) {
@@ -198,8 +206,6 @@ public final class BufferPool {
 
     /**
      * The buffer size that will be retained in the free list after use
-     * 
-     * @return
      */
     public int poolableSize() {
         return this.poolableSize;

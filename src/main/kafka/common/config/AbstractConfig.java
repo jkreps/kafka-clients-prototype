@@ -10,6 +10,11 @@ import kafka.common.Configurable;
 import kafka.common.KafkaException;
 import kafka.common.utils.Utils;
 
+/**
+ * A convenient base class for configurations to extend.
+ * <p>
+ * This class holds both the original configuration that was provided as well as the parsed
+ */
 public class AbstractConfig {
 
     private final Set<String> used;

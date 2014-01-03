@@ -1,5 +1,8 @@
 package kafka.common.utils;
 
+/**
+ * A time implementation that uses the system clock and sleep call
+ */
 public class SystemTime implements Time {
 
     @Override

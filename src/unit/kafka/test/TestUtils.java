@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Random;
 
+/**
+ * Helper functions for writing unit tests
+ */
 public class TestUtils {
 
     public static File IO_TMP_DIR = new File(System.getProperty("java.io.tmpdir"));

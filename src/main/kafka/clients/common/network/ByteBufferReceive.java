@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ScatteringByteChannel;
 
+/**
+ * A receive backed by an array of ByteBuffers
+ */
 public class ByteBufferReceive implements Receive {
 
     private final int source;
@@ -29,8 +32,8 @@ public class ByteBufferReceive implements Receive {
     }
 
     @Override
-    public int readFrom(ScatteringByteChannel channel) throws IOException {
-        return (int) channel.read(buffers);
+    public long readFrom(ScatteringByteChannel channel) throws IOException {
+        return channel.read(buffers);
     }
 
     public ByteBuffer[] reify() {

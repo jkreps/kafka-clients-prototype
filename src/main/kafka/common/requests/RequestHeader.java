@@ -9,6 +9,9 @@ import kafka.common.protocol.Protocol;
 import kafka.common.protocol.types.Field;
 import kafka.common.protocol.types.Struct;
 
+/**
+ * The header for a request in the Kafka protocol
+ */
 public class RequestHeader {
 
     private static Field API_KEY_FIELD = REQUEST_HEADER.get("api_key");

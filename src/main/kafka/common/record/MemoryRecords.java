@@ -7,6 +7,9 @@ import java.util.Iterator;
 
 import kafka.common.utils.AbstractIterator;
 
+/**
+ * A {@link Records} implementation backed by a ByteBuffer.
+ */
 public class MemoryRecords implements Records {
 
     private final ByteBuffer buffer;

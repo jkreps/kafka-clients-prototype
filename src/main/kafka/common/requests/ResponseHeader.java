@@ -8,6 +8,9 @@ import kafka.common.protocol.Protocol;
 import kafka.common.protocol.types.Field;
 import kafka.common.protocol.types.Struct;
 
+/**
+ * A response header in the kafka protocol.
+ */
 public class ResponseHeader {
 
     private static Field CORRELATION_KEY_FIELD = RESPONSE_HEADER.get("correlation_id");

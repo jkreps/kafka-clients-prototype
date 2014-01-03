@@ -1,5 +1,8 @@
 package kafka.common.record;
 
+/**
+ * The compression type to use
+ */
 public enum CompressionType {
     NONE(0, "none"), GZIP(1, "gzip"), SNAPPY(2, "snappy");
 

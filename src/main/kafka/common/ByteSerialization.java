@@ -1,7 +1,7 @@
 package kafka.common;
 
 /**
- * A serialization implementation that just retains the provided byte array
+ * A serialization implementation that just retains the provided byte array unchanged
  */
 public class ByteSerialization implements Serializer, Deserializer {
 

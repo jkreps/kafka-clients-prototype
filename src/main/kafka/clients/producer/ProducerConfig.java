@@ -10,7 +10,7 @@ import kafka.common.config.ConfigDef;
 import kafka.common.config.ConfigDef.Type;
 
 /**
- * The producer configuration.
+ * The producer configuration keys
  */
 public class ProducerConfig extends AbstractConfig {
 

@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ScatteringByteChannel;
 
+/**
+ * A size delimited Receive that consists of a 4 byte network-ordered size N followed by N bytes of content
+ */
 public class NetworkReceive implements Receive {
 
     private final int source;
@@ -39,7 +42,7 @@ public class NetworkReceive implements Receive {
     }
 
     @Override
-    public int readFrom(ScatteringByteChannel channel) throws IOException {
+    public long readFrom(ScatteringByteChannel channel) throws IOException {
         int read = 0;
         if (size.hasRemaining()) {
             int bytesRead = channel.read(size);

@@ -3,6 +3,10 @@ package kafka.common.utils;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+/**
+ * A base class that simplifies implementing an iterator
+ * @param <T> The type of thing we are iterating over
+ */
 public abstract class AbstractIterator<T> implements Iterator<T> {
 
     private static enum State {

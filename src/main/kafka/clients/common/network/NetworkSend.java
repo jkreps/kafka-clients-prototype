@@ -2,6 +2,9 @@ package kafka.clients.common.network;
 
 import java.nio.ByteBuffer;
 
+/**
+ * A size delimited Send that consists of a 4 byte network-ordered size N followed by N bytes of content
+ */
 public class NetworkSend extends ByteBufferSend {
 
     public NetworkSend(int destination, ByteBuffer... buffers) {

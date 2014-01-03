@@ -22,8 +22,11 @@ import kafka.common.utils.Time;
 import kafka.common.utils.Utils;
 
 /**
- * This class accumulates records that are waiting to be sent in per-partition buffers. TODO: Current behavior is to
- * send all when memory is exhausted
+ * This class acts as a queue that accumulates records into {@link kafka.common.record.MemoryRecords} instances to be
+ * sent to the server.
+ * <p>
+ * The accumulator uses a bounded amount of memory and append calls will block when that memory is exhausted, unless
+ * this behavior is explicitly disabled.
  */
 public final class RecordAccumulator {
 
@@ -35,6 +38,17 @@ public final class RecordAccumulator {
     private final BufferPool free;
     private final Time time;
 
+    /**
+     * Create a new record accumulator
+     * @param batchSize The size to use when allocating {@link kafka.common.record.MemoryRecords} instances
+     * @param totalSize The maximum memory the record accumulator can use.
+     * @param lingerMs An artificial delay time to add before declaring a records instance that isn't full ready for
+     *        sending. This allows time for more records to arrive. Setting a non-zero lingerMs will trade off some
+     *        latency for potentially better throughput due to more batching (and hence fewer, larger requests).
+     * @param blockOnBufferFull If true block when we are out of memory; if false throw an exception when we are out of
+     *        memory
+     * @param time The time instance to use
+     */
     public RecordAccumulator(int batchSize, long totalSize, long lingerMs, boolean blockOnBufferFull, Time time) {
         this.drainIndex = 0;
         this.closed = false;
@@ -46,7 +60,14 @@ public final class RecordAccumulator {
     }
 
     /**
-     * Add a record to the accumulator
+     * Add a record to the accumulator.
+     * <p>
+     * This method will block if sufficient memory isn't available for the record unless blocking has been disabled.
+     * @param tp The topic/partition to which this record is being sent
+     * @param key The key for the record
+     * @param value The value for the record
+     * @param compression The compression codec for the record
+     * @param callback The user-supplied callback to execute when the request is complete
      */
     public RecordSend append(TopicPartition tp, byte[] key, byte[] value, CompressionType compression, Callback callback) throws InterruptedException {
         if (closed)
@@ -84,7 +105,15 @@ public final class RecordAccumulator {
     }
 
     /**
-     * Get a list of topic-partitions which are ready to be sent
+     * Get a list of topic-partitions which are ready to be send.
+     * <p>
+     * A partition is ready if any of the following are true:
+     * <ol>
+     * <li>The record set is full
+     * <li>The record set has sat in the accumulator for at least lingerMs milliseconds
+     * <li>The accumulator is out of memory and threads are blocking waiting for data (in this case all partitions are
+     * immediately considered ready).
+     * </ol>
      */
     public List<TopicPartition> ready(long now) {
         List<TopicPartition> ready = new ArrayList<TopicPartition>();
@@ -105,7 +134,12 @@ public final class RecordAccumulator {
     }
 
     /**
-     * Drain all the data for the given topic-partitions TODO: There may be a starvation issue due to iteration order
+     * Drain all the data for the given topic-partitions that will fit within the specified size. This method attempts
+     * to avoid choosing the same topic-partitions over and over.
+     * @param partitions The list of partitions to drain
+     * @param maxSize The maximum number of bytes to drain
+     * @return A list of {@link RecordBatch} for partitions specified with total size less than the requested maxSize.
+     *         TODO: There may be a starvation issue due to iteration order
      */
     public List<RecordBatch> drain(List<TopicPartition> partitions, int maxSize) {
         if (partitions.isEmpty())
@@ -134,7 +168,8 @@ public final class RecordAccumulator {
     }
 
     /**
-     * Get the deque for the given topic-partition, creating it if necessary
+     * Get the deque for the given topic-partition, creating it if necessary. Since new topics will only be added rarely
+     * we copy-on-write the hashmap
      */
     private Deque<RecordBatch> dequeFor(TopicPartition tp) {
         Deque<RecordBatch> d = this.batches.get().get(tp);

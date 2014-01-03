@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
 
+/**
+ * A send backed by an array of byte buffers
+ */
 public class ByteBufferSend implements Send {
 
     private final int destination;

@@ -1,5 +1,8 @@
 package kafka.common;
 
+/**
+ * Information about a Kafka node
+ */
 public class Node {
 
     private final int id;
@@ -13,14 +16,23 @@ public class Node {
         this.port = port;
     }
 
+    /**
+     * The node id of this node
+     */
     public int id() {
         return id;
     }
 
+    /**
+     * The host name for this node
+     */
     public String host() {
         return host;
     }
 
+    /**
+     * The port for this node
+     */
     public int port() {
         return port;
     }

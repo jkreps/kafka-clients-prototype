@@ -29,7 +29,8 @@ import kafka.common.requests.ResponseHeader;
 import kafka.common.utils.Time;
 
 /**
- * A thread that sends the produce requests
+ * The background thread that handles the sending of produce requests to the Kafka cluster. This thread makes metadata
+ * requests to renew its view of the cluster and then sends produce requests to the appropriate nodes.
  */
 public class Sender implements Runnable {
 

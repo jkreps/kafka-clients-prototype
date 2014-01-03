@@ -1,5 +1,8 @@
 package kafka.common.record;
 
+/**
+ * An offset and record pair
+ */
 public final class LogEntry {
 
     private final long offset;
