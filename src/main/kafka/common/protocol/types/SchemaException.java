@@ -4,10 +4,10 @@ import kafka.common.KafkaException;
 
 public class SchemaException extends KafkaException {
 
-  private static final long serialVersionUID = 1L;
-  
-  public SchemaException(String message) {
-    super(message);
-  }
-  
+    private static final long serialVersionUID = 1L;
+
+    public SchemaException(String message) {
+        super(message);
+    }
+
 }

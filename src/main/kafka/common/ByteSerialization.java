@@ -5,14 +5,14 @@ package kafka.common;
  */
 public class ByteSerialization implements Serializer, Deserializer {
 
-  @Override
-  public Object fromBytes(byte[] bytes) {
-    return bytes;
-  }
+    @Override
+    public Object fromBytes(byte[] bytes) {
+        return bytes;
+    }
 
-  @Override
-  public byte[] toBytes(Object o) {
-    return (byte[]) o;
-  }
+    @Override
+    public byte[] toBytes(Object o) {
+        return (byte[]) o;
+    }
 
 }

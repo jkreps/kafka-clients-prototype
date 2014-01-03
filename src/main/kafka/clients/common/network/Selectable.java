@@ -6,14 +6,26 @@ import java.util.List;
 
 public interface Selectable {
 
-  public abstract void connect(int id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException;
-  public abstract void disconnect(int id);
-  public abstract void wakeup();
-  public abstract void close();
-  public abstract void poll(long timeout, List<NetworkSend> sends) throws IOException;
-  public abstract List<NetworkSend> completedSends();
-  public abstract List<NetworkReceive> completedReceives();
-  public abstract List<Integer> disconnected();
-  public abstract List<Integer> connected();
+    public void connect(int id,
+                        InetSocketAddress address,
+                        int sendBufferSize,
+                        int receiveBufferSize) throws IOException;
+
+    public void disconnect(int id);
+
+    public void wakeup();
+
+    public void close();
+
+    public void poll(long timeout,
+                     List<NetworkSend> sends) throws IOException;
+
+    public List<NetworkSend> completedSends();
+
+    public List<NetworkReceive> completedReceives();
+
+    public List<Integer> disconnected();
+
+    public List<Integer> connected();
 
 }

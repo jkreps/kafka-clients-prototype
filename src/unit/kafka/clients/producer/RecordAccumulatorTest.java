@@ -1,7 +1,8 @@
 package kafka.clients.producer;
 
-import static org.junit.Assert.*;
 import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -18,104 +19,104 @@ import kafka.common.utils.MockTime;
 import org.junit.Test;
 
 public class RecordAccumulatorTest {
-  
-  private TopicPartition tp = new TopicPartition("test", 0);
-  private MockTime time = new MockTime();
-  private byte[] key = "key".getBytes();
-  private byte[] value = "value".getBytes();
-  private int msgSize = Records.LOG_OVERHEAD + Record.recordSize(key, value);
-  
-  @Test
-  public void testFull() throws Exception {
-    long now = time.milliseconds();
-    RecordAccumulator accum = new RecordAccumulator(1024, 10*1024, 10L, time);
-    int appends = 1024 / msgSize;
-    for(int i = 0; i < appends; i++) {
-      accum.append(tp, key, value, CompressionType.NONE, null);
-      assertEquals("No partitions should be ready.", 0, accum.ready(now).size());
-    }
-    accum.append(tp, key, value, CompressionType.NONE, null);
-    assertEquals("Our partition should be ready", asList(tp), accum.ready(time.milliseconds()));
-    List<RecordBatch> batches = accum.drain(asList(tp), Integer.MAX_VALUE);
-    assertEquals(1, batches.size());
-    RecordBatch batch = batches.get(0);
-    Iterator<LogEntry> iter = batch.records.iterator();
-    for(int i = 0; i < appends; i++) {
-      LogEntry entry = iter.next();
-      assertEquals("Keys should match", ByteBuffer.wrap(key), entry.record().key());
-      assertEquals("Values should match", ByteBuffer.wrap(value), entry.record().value());
-    }
-    assertFalse("No more records", iter.hasNext());
-  }
 
-  @Test
-  public void testLinger() throws Exception {
-    long lingerMs = 10L;
-    RecordAccumulator accum = new RecordAccumulator(1024, 10*1024, lingerMs, time);
-    accum.append(tp, key, value, CompressionType.NONE, null);
-    assertEquals("No partitions should be ready", 0, accum.ready(time.milliseconds()).size());
-    time.sleep(10);
-    assertEquals("Our partition should be ready", asList(tp), accum.ready(time.milliseconds()));
-    List<RecordBatch> batches = accum.drain(asList(tp), Integer.MAX_VALUE);
-    assertEquals(1, batches.size());
-    RecordBatch batch = batches.get(0);
-    Iterator<LogEntry> iter = batch.records.iterator();
-    LogEntry entry = iter.next();
-    assertEquals("Keys should match", ByteBuffer.wrap(key), entry.record().key());
-    assertEquals("Values should match", ByteBuffer.wrap(value), entry.record().value());
-    assertFalse("No more records", iter.hasNext());
-  }
-  
-  @Test
-  public void testPartialDrain() throws Exception {
-    RecordAccumulator accum = new RecordAccumulator(1024, 10*1024, 10L, time);
-    int appends = 1024 / msgSize + 1;
-    List<TopicPartition> partitions = asList(new TopicPartition("test", 0), new TopicPartition("test", 1));
-    for(TopicPartition tp: partitions) {
-      for(int i = 0; i < appends; i++)
-        accum.append(tp, key, value, CompressionType.NONE, null);
-    }
-    assertEquals("Both partitions should be ready", 2, accum.ready(time.milliseconds()).size());
-    
-    List<RecordBatch> batches = accum.drain(partitions, 1024);
-    assertEquals("But due to size bound only one partition should have been retrieved", 1, batches.size());
-  }
-  
-  @Test
-  public void testStressfulSituation() throws Exception {
-    final int numThreads = 5;
-    final int msgs = 100;
-    final int numParts = 10;
-    final RecordAccumulator accum = new RecordAccumulator(1024, 10*1024, 0L, time);
-    List<Thread> threads = new ArrayList<Thread>();
-    for(int i = 0; i < numThreads; i++) {
-      threads.add(new Thread() {
-        public void run() {
-          for(int i = 0; i < msgs; i++) {
-            try {
-              accum.append(new TopicPartition("test", i % numParts), key, value, CompressionType.NONE, null);
-            } catch(Exception e) {
-              e.printStackTrace();
-            }
-          }
+    private TopicPartition tp = new TopicPartition("test", 0);
+    private MockTime time = new MockTime();
+    private byte[] key = "key".getBytes();
+    private byte[] value = "value".getBytes();
+    private int msgSize = Records.LOG_OVERHEAD + Record.recordSize(key, value);
+
+    @Test
+    public void testFull() throws Exception {
+        long now = time.milliseconds();
+        RecordAccumulator accum = new RecordAccumulator(1024, 10 * 1024, 10L, false, time);
+        int appends = 1024 / msgSize;
+        for (int i = 0; i < appends; i++) {
+            accum.append(tp, key, value, CompressionType.NONE, null);
+            assertEquals("No partitions should be ready.", 0, accum.ready(now).size());
         }
-      });
+        accum.append(tp, key, value, CompressionType.NONE, null);
+        assertEquals("Our partition should be ready", asList(tp), accum.ready(time.milliseconds()));
+        List<RecordBatch> batches = accum.drain(asList(tp), Integer.MAX_VALUE);
+        assertEquals(1, batches.size());
+        RecordBatch batch = batches.get(0);
+        Iterator<LogEntry> iter = batch.records.iterator();
+        for (int i = 0; i < appends; i++) {
+            LogEntry entry = iter.next();
+            assertEquals("Keys should match", ByteBuffer.wrap(key), entry.record().key());
+            assertEquals("Values should match", ByteBuffer.wrap(value), entry.record().value());
+        }
+        assertFalse("No more records", iter.hasNext());
     }
-    for(Thread t: threads)
-      t.start();
-    int read = 0;
-    while(read < numThreads * msgs) {
-      List<TopicPartition> tps = accum.ready(0L);
-      List<RecordBatch> batches = accum.drain(tps, 5*1024);
-      for(RecordBatch batch: batches) {
-        for(LogEntry entry: batch.records)
-          read++;
-      }
-      accum.deallocate(batches);
+
+    @Test
+    public void testLinger() throws Exception {
+        long lingerMs = 10L;
+        RecordAccumulator accum = new RecordAccumulator(1024, 10 * 1024, lingerMs, false, time);
+        accum.append(tp, key, value, CompressionType.NONE, null);
+        assertEquals("No partitions should be ready", 0, accum.ready(time.milliseconds()).size());
+        time.sleep(10);
+        assertEquals("Our partition should be ready", asList(tp), accum.ready(time.milliseconds()));
+        List<RecordBatch> batches = accum.drain(asList(tp), Integer.MAX_VALUE);
+        assertEquals(1, batches.size());
+        RecordBatch batch = batches.get(0);
+        Iterator<LogEntry> iter = batch.records.iterator();
+        LogEntry entry = iter.next();
+        assertEquals("Keys should match", ByteBuffer.wrap(key), entry.record().key());
+        assertEquals("Values should match", ByteBuffer.wrap(value), entry.record().value());
+        assertFalse("No more records", iter.hasNext());
     }
-    
-    for(Thread t: threads)
-      t.join();
-  }
-    
+
+    @Test
+    public void testPartialDrain() throws Exception {
+        RecordAccumulator accum = new RecordAccumulator(1024, 10 * 1024, 10L, false, time);
+        int appends = 1024 / msgSize + 1;
+        List<TopicPartition> partitions = asList(new TopicPartition("test", 0), new TopicPartition("test", 1));
+        for (TopicPartition tp : partitions) {
+            for (int i = 0; i < appends; i++)
+                accum.append(tp, key, value, CompressionType.NONE, null);
+        }
+        assertEquals("Both partitions should be ready", 2, accum.ready(time.milliseconds()).size());
+
+        List<RecordBatch> batches = accum.drain(partitions, 1024);
+        assertEquals("But due to size bound only one partition should have been retrieved", 1, batches.size());
+    }
+
+    @Test
+    public void testStressfulSituation() throws Exception {
+        final int numThreads = 5;
+        final int msgs = 100;
+        final int numParts = 10;
+        final RecordAccumulator accum = new RecordAccumulator(1024, 10 * 1024, 0L, true, time);
+        List<Thread> threads = new ArrayList<Thread>();
+        for (int i = 0; i < numThreads; i++) {
+            threads.add(new Thread() {
+                public void run() {
+                    for (int i = 0; i < msgs; i++) {
+                        try {
+                            accum.append(new TopicPartition("test", i % numParts), key, value, CompressionType.NONE, null);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+        }
+        for (Thread t : threads)
+            t.start();
+        int read = 0;
+        while (read < numThreads * msgs) {
+            List<TopicPartition> tps = accum.ready(0L);
+            List<RecordBatch> batches = accum.drain(tps, 5 * 1024);
+            for (RecordBatch batch : batches) {
+                for (LogEntry entry : batch.records)
+                    read++;
+            }
+            accum.deallocate(batches);
+        }
+
+        for (Thread t : threads)
+            t.join();
+    }
+
 }

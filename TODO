@@ -10,18 +10,20 @@ Issues
 - Sender may be unfair in selecting topic/partitions
 
 TODO
-Fail on buffer exhaustion
-Wakeup selector
-Fix tests
-Finish config
-Integrate into main code base
-Metrics
-Flesh out unit tests
-Deeper perf testing
-Compression
-Optimize serialization
-Figure out packages
-Learn javadoc
-Code layout
+- Partition by bytes not object
+- Integrate into main code base
+- Metrics
+- Flesh out unit tests
+- Deeper perf testing
+- Compression
+- Optimize serialization
+- Figure out packages
+- Improve javadoc
+- Code layout
 
+Discussion points
+- Configuration
+- Serialization
+- Readiness criteria
+- Logging: log4j vs slf4j vs jul
 

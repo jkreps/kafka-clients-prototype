@@ -7,13 +7,16 @@ import kafka.common.Cluster;
  */
 public interface Partitioner {
 
-  /**
-   * Compute the partition for the given record
-   * @param record The record being sent
-   * @param cluster The current state of the cluster
-   * @param numPartitions The total number of partitions for the given topic
-   * @return The partition to send this record to
-   */
-	public int partition(ProducerRecord record, Cluster cluster, int numPartitions);
-	
+    /**
+     * Compute the partition for the given record
+     * 
+     * @param record The record being sent
+     * @param cluster The current state of the cluster
+     * @param numPartitions The total number of partitions for the given topic
+     * @return The partition to send this record to
+     */
+    public int partition(ProducerRecord record,
+                         Cluster cluster,
+                         int numPartitions);
+
 }

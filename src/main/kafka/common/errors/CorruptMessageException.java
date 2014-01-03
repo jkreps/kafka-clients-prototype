@@ -1,25 +1,23 @@
 package kafka.common.errors;
 
 public class CorruptMessageException extends ApiException {
-  
-  private static final long serialVersionUID = 1L;
 
-  public CorruptMessageException() {
-    super("This message has failed it's CRC checksum or is otherwise corrupt.");
-  }
+    private static final long serialVersionUID = 1L;
 
-  public CorruptMessageException(String message) {
-    super(message);
-  }
+    public CorruptMessageException() {
+        super("This message has failed it's CRC checksum or is otherwise corrupt.");
+    }
 
-  public CorruptMessageException(Throwable cause) {
-    super(cause);
-  }
+    public CorruptMessageException(String message) {
+        super(message);
+    }
 
-  public CorruptMessageException(String message, Throwable cause) {
-    super(message, cause);
-  }
-  
-  
+    public CorruptMessageException(Throwable cause) {
+        super(cause);
+    }
+
+    public CorruptMessageException(String message, Throwable cause) {
+        super(message, cause);
+    }
 
 }
