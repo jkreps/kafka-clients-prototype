@@ -74,10 +74,7 @@ public class Selector implements Selectable {
      * @throws UnresolvedAddressException if DNS resolution fails on the hostname
      */
     @Override
-    public void connect(int id,
-                        InetSocketAddress address,
-                        int sendBufferSize,
-                        int receiveBufferSize) throws IOException {
+    public void connect(int id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException {
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
         Socket socket = channel.socket();
@@ -139,8 +136,7 @@ public class Selector implements Selectable {
      * @param sends The list of new sends to begin
      */
     @Override
-    public void poll(long timeout,
-                     List<NetworkSend> sends) throws IOException {
+    public void poll(long timeout, List<NetworkSend> sends) throws IOException {
         clear();
 
         /* register for write interest on any new sends */

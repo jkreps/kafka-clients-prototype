@@ -6,10 +6,7 @@ import java.util.List;
 
 public interface Selectable {
 
-    public void connect(int id,
-                        InetSocketAddress address,
-                        int sendBufferSize,
-                        int receiveBufferSize) throws IOException;
+    public void connect(int id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException;
 
     public void disconnect(int id);
 
@@ -17,8 +14,7 @@ public interface Selectable {
 
     public void close();
 
-    public void poll(long timeout,
-                     List<NetworkSend> sends) throws IOException;
+    public void poll(long timeout, List<NetworkSend> sends) throws IOException;
 
     public List<NetworkSend> completedSends();
 

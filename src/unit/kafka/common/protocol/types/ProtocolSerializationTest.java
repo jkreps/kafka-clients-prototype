@@ -74,8 +74,7 @@ public class ProtocolSerializationTest {
         struct.validate(); // should be valid even with missing value
     }
 
-    private Object roundtrip(Type type,
-                             Object obj) {
+    private Object roundtrip(Type type, Object obj) {
         ByteBuffer buffer = ByteBuffer.allocate(type.sizeOf(obj));
         type.write(buffer, obj);
         assertFalse("The buffer should now be full.", buffer.hasRemaining());
@@ -85,8 +84,7 @@ public class ProtocolSerializationTest {
         return read;
     }
 
-    private void check(Type type,
-                       Object obj) {
+    private void check(Type type, Object obj) {
         Object result = roundtrip(type, obj);
         if (obj instanceof Object[]) {
             obj = Arrays.asList((Object[]) obj);

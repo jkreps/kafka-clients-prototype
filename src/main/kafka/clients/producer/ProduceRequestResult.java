@@ -3,6 +3,8 @@ package kafka.clients.producer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import kafka.common.errors.TimeoutException;
+
 public final class ProduceRequestResult {
 
     private final CountDownLatch latch = new CountDownLatch(1);
@@ -12,20 +14,26 @@ public final class ProduceRequestResult {
     public ProduceRequestResult() {
     }
 
-    public void done(long baseOffset,
-                     RuntimeException error) {
+    public void done(long baseOffset, RuntimeException error) {
         this.baseOffset = baseOffset;
         this.error = error;
         this.latch.countDown();
     }
 
-    public void await() throws InterruptedException {
-        latch.await();
+    public void await() {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new TimeoutException("Interrupted while waiting for request to complete.");
+        }
     }
 
-    public boolean await(long timeout,
-                         TimeUnit unit) throws InterruptedException {
-        return latch.await(timeout, unit);
+    public boolean await(long timeout, TimeUnit unit) {
+        try {
+            return latch.await(timeout, unit);
+        } catch (InterruptedException e) {
+            throw new TimeoutException("Interrupted while waiting for request to complete.");
+        }
     }
 
     public long baseOffset() {

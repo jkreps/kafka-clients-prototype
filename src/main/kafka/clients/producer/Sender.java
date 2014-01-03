@@ -139,8 +139,7 @@ public class Sender implements Runnable {
         return ready.size();
     }
 
-    private InFlightRequest maybeMetadataRequest(Cluster cluster,
-                                                 long now) {
+    private InFlightRequest maybeMetadataRequest(Cluster cluster, long now) {
         if (this.metadataFetchInProgress || !metadata.needsUpdate(now))
             return null;
         Node node = cluster.nextNode();
@@ -170,9 +169,7 @@ public class Sender implements Runnable {
      * it to the returned set. For any partitions we have no connection to either make one, fetch the appropriate
      * metdata to be able to do so
      */
-    private List<TopicPartition> processReadyPartitions(Cluster cluster,
-                                                        List<TopicPartition> ready,
-                                                        long now) {
+    private List<TopicPartition> processReadyPartitions(Cluster cluster, List<TopicPartition> ready, long now) {
         List<TopicPartition> sendable = new ArrayList<TopicPartition>(ready.size());
         for (TopicPartition tp : ready) {
             Node node = cluster.leaderFor(tp);
@@ -196,8 +193,7 @@ public class Sender implements Runnable {
     /**
      * Initiate a connection to the given node
      */
-    private void initiateConnect(Node node,
-                                 long now) {
+    private void initiateConnect(Node node, long now) {
         try {
             selector.connect(node.id(), new InetSocketAddress(node.host(), node.port()), 64 * 1024 * 1024, 64 * 1024 * 1024); // TODO
                                                                                                                               // socket
@@ -240,8 +236,7 @@ public class Sender implements Runnable {
     /**
      * Handle responses from the server
      */
-    private void handleResponses(List<NetworkReceive> receives,
-                                 long now) {
+    private void handleResponses(List<NetworkReceive> receives, long now) {
         for (NetworkReceive receive : receives) {
             int source = receive.source();
             InFlightRequest req = inFlightRequests.nextCompleted(source);
@@ -258,8 +253,7 @@ public class Sender implements Runnable {
         }
     }
 
-    private void handleMetadataResponse(Struct body,
-                                        long now) {
+    private void handleMetadataResponse(Struct body, long now) {
         this.metadataFetchInProgress = false;
         this.metadata.update(ProtoUtils.parseMetadataResponse(body), now);
     }
@@ -267,8 +261,7 @@ public class Sender implements Runnable {
     /**
      * Handle a produce response
      */
-    private void handleProduceResponse(InFlightRequest request,
-                                       Struct response) {
+    private void handleProduceResponse(InFlightRequest request, Struct response) {
         for (Object topicResponse : (Object[]) response.get("responses")) {
             Struct topicRespStruct = (Struct) topicResponse;
             String topic = (String) topicRespStruct.get("topic");
@@ -287,8 +280,7 @@ public class Sender implements Runnable {
     /**
      * Validate that the response corresponds to the request we expect or else explode
      */
-    private void correlate(RequestHeader requestHeader,
-                           ResponseHeader responseHeader) {
+    private void correlate(RequestHeader requestHeader, ResponseHeader responseHeader) {
         if (requestHeader.correlationId() != responseHeader.correlationId())
             throw new IllegalStateException("Correlation id for response (" + responseHeader.correlationId()
                                             + ") does not match request ("
@@ -299,8 +291,7 @@ public class Sender implements Runnable {
     /**
      * Create a metadata request for the given topics
      */
-    private InFlightRequest metadataRequest(int node,
-                                            Set<String> topics) {
+    private InFlightRequest metadataRequest(int node, Set<String> topics) {
         String[] ts = new String[topics.size()];
         topics.toArray(ts);
         Struct body = new Struct(ProtoUtils.currentRequestSchema(ApiKeys.METADATA.id));
@@ -312,8 +303,7 @@ public class Sender implements Runnable {
     /**
      * Collate the record batches into a list of produce requests on a per-node basis
      */
-    private List<InFlightRequest> collate(Cluster cluster,
-                                          List<RecordBatch> batches) {
+    private List<InFlightRequest> collate(Cluster cluster, List<RecordBatch> batches) {
         Map<Integer, List<RecordBatch>> collated = new HashMap<Integer, List<RecordBatch>>();
         for (RecordBatch batch : batches) {
             Node node = cluster.leaderFor(batch.topicPartition);
@@ -333,10 +323,7 @@ public class Sender implements Runnable {
     /**
      * Create a produce request from the given record batches
      */
-    private InFlightRequest produceRequest(int destination,
-                                           short acks,
-                                           int timeout,
-                                           List<RecordBatch> batches) {
+    private InFlightRequest produceRequest(int destination, short acks, int timeout, List<RecordBatch> batches) {
         Map<TopicPartition, RecordBatch> batchesByPartition = new HashMap<TopicPartition, RecordBatch>();
         Map<String, List<RecordBatch>> batchesByTopic = new HashMap<String, List<RecordBatch>>();
         for (RecordBatch batch : batches) {

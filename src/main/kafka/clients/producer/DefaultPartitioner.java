@@ -13,9 +13,7 @@ public class DefaultPartitioner implements Partitioner {
     private final AtomicInteger counter = new AtomicInteger(0);
 
     @Override
-    public int partition(ProducerRecord record,
-                         Cluster cluster,
-                         int numPartitions) {
+    public int partition(ProducerRecord record, Cluster cluster, int numPartitions) {
         Object key = record.partitionKey();
         if (key == null)
             return Utils.abs(counter.getAndIncrement()) % numPartitions;

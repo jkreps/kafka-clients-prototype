@@ -30,8 +30,12 @@ import kafka.common.utils.KafkaThread;
 import kafka.common.utils.SystemTime;
 
 /**
- * A Kafka producer that can be used to send data to the Kafka cluster. The producer is thread safe and should be shared
- * among all threads for best performance.
+ * A Kafka producer that can be used to send data to the Kafka cluster.
+ * <P>
+ * The producer is <i>thread safe</i> and should generally be shared among all threads for best performance.
+ * <p>
+ * The producer manages a single background thread that does I/O as well as a TCP connection to each of the brokers it
+ * needs to communicate with. Failure to close the producer after use will leak these.
  */
 public class KafkaProducer implements Producer {
 
@@ -44,17 +48,18 @@ public class KafkaProducer implements Producer {
     private final Thread ioThread;
 
     /**
-     * The producer configuration. Valid configuration keys are documented <a
-     * href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>. Values can be either strings or
-     * Objects of the appropriate type (String, Integer, Long, Double, List, Class).
+     * A producer is instantiated by providing a set of key-value pairs as configuration. Valid configuration strings
+     * are documented <a href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>. Values can be
+     * either strings or Objects of the appropriate type (for example a numeric configuration would accept either the
+     * string "42" or the integer 42).
      */
     public KafkaProducer(Map<String, Object> configs) {
         this(new ProducerConfig(configs));
     }
 
     /**
-     * The producer configuration. Valid configuration keys are documented <a
-     * href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>.
+     * A producer is instantiated by providing a set of key-value pairs as configuration. Valid configuration strings
+     * are documented <a href="http://kafka.apache.org/documentation.html#producerconfigs">here</a>.
      */
     public KafkaProducer(Properties properties) {
         this(new ProducerConfig(properties));
@@ -106,7 +111,7 @@ public class KafkaProducer implements Producer {
     }
 
     /**
-     * Equivalent to send(record, null)
+     * Asynchronously send a record. Equivalent to {@link #send(ProducerRecord, Callback) send(record, null)}
      */
     @Override
     public RecordSend send(ProducerRecord record) {
@@ -114,25 +119,42 @@ public class KafkaProducer implements Producer {
     }
 
     /**
-     * Send a record.
-     * 
-     * The send is asynchronous and this method will return immediately.
-     * 
-     * The RecordSend returned by this call will hold the future response when it is ready. This object can be used to
-     * make the call synchronous:
+     * Send a record to a topic.
+     * <p>
+     * The send is asynchronous and this method will return immediately once the record has been serialized and stored
+     * in the buffer of messaging waiting to be sent. This allows sending many records in parallel without necessitating
+     * blocking to wait for the response after each one.
+     * <p>
+     * The {@link RecordSend} returned by this call will hold the future response when the request completes (or returns
+     * an error). If you want the equivalent of a blocking send you can easily archive that using the {@link
+     * RecordSend.await() await()} method on the {@link RecordSend} this call returns:
      * 
      * <pre>
      *   ProducerRecord record = new ProducerRecord("the-topic", "key, "value");
      *   producer.send(myRecord, null).await();
      * </pre>
      * 
-     * @param record The record to send
-     * @param callback A user-supplied callback to execute when the record has been acknowledged by the server
+     * Note that this method will not throw an exception if the request fails while communicating with the cluster,
+     * rather that exception will be thrown by the {@link RecordSend} that is returned.
+     * <p>
+     * Those desiring fully non-blocking usage can make use of the {@link Callback} parameter to provide a callback that
+     * will be invoked when the request is complete. Note that the callback will execute in the I/O thread of the
+     * producer and hence block other I/O so callbacks should be fast.
+     * <p>
+     * This call enqueues the message in the buffer of outgoing messages to be sent. This buffer has a hard limit on
+     * it's size controlled by the configuration <code>total.memory.bytes</code>. If <code>send()</code> is called
+     * faster than the I/O thread can send data to the brokers we will eventually run out of buffer space. The default
+     * behavior in this case is to block the send call until the I/O thread catches up and more buffer space is
+     * available. However if non-blocking usage is desired the setting <code>block.on.buffer.full=false</code> will
+     * cause the producer to instead throw an exception when this occurs.
      * 
+     * @param record The record to send
+     * @param callback A user-supplied callback to execute when the record has been acknowledged by the server (null
+     *        indicates no callback)
+     * @throws BufferExhausedException This exception is throw if the buffer is full and blocking has been disabled.
      */
     @Override
-    public RecordSend send(ProducerRecord record,
-                           Callback callback) {
+    public RecordSend send(ProducerRecord record, Callback callback) {
         Cluster cluster = metadata.fetch(record.topic());
         int partition = partitioner.partition(record, cluster, cluster.partitionsFor(record.topic()).size());
         byte[] key = keySerializer.toBytes(record.key());

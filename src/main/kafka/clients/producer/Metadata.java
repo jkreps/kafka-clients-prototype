@@ -101,8 +101,7 @@ public final class Metadata {
     /**
      * Update the cluster metadata
      */
-    public synchronized void update(Cluster cluster,
-                                    long now) {
+    public synchronized void update(Cluster cluster, long now) {
         this.forceUpdate = false;
         this.lastRefresh = now;
         this.cluster = cluster;

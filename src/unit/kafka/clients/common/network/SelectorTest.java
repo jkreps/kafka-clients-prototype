@@ -194,8 +194,7 @@ public class SelectorTest {
         assertEquals("", blockingRequest(node, ""));
     }
 
-    private String blockingRequest(int node,
-                                   String s) throws IOException {
+    private String blockingRequest(int node, String s) throws IOException {
         selector.poll(1000L, asList(createSend(node, s)));
         while (true) {
             selector.poll(1000L, EMPTY);
@@ -212,8 +211,7 @@ public class SelectorTest {
             selector.poll(10000L, EMPTY);
     }
 
-    private NetworkSend createSend(int node,
-                                   String s) {
+    private NetworkSend createSend(int node, String s) {
         return new NetworkSend(node, ByteBuffer.wrap(s.getBytes()));
     }
 

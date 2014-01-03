@@ -27,8 +27,7 @@ public class Schema extends Type {
     /**
      * Write a struct to the buffer
      */
-    public void write(ByteBuffer buffer,
-                      Object o) {
+    public void write(ByteBuffer buffer, Object o) {
         Struct r = (Struct) o;
         for (int i = 0; i < fields.length; i++) {
             Field f = fields[i];

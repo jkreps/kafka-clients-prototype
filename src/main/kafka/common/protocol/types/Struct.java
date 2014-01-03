@@ -113,8 +113,7 @@ public class Struct {
      * @param field The field
      * @param value The value
      */
-    public Struct set(Field field,
-                      Object value) {
+    public Struct set(Field field, Object value) {
         validateField(field);
         this.values[field.index] = value;
         return this;
@@ -126,8 +125,7 @@ public class Struct {
      * @param name The name of the field
      * @param value The value to set
      */
-    public Struct set(String name,
-                      Object value) {
+    public Struct set(String name, Object value) {
         Field field = this.schema.get(name);
         if (field == null)
             throw new SchemaException("Unknown field: " + name);

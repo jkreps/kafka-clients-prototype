@@ -22,8 +22,7 @@ public class MemoryRecords implements Records {
     /**
      * Append the given record and offset to the buffer
      */
-    public void append(long offset,
-                       Record record) {
+    public void append(long offset, Record record) {
         buffer.putLong(offset);
         buffer.putInt(record.size());
         buffer.put(record.buffer());
@@ -33,10 +32,7 @@ public class MemoryRecords implements Records {
     /**
      * Append a new record and offset to the buffer
      */
-    public void append(long offset,
-                       byte[] key,
-                       byte[] value,
-                       CompressionType type) {
+    public void append(long offset, byte[] key, byte[] value, CompressionType type) {
         buffer.putLong(offset);
         buffer.putInt(Record.recordSize(key, value));
         Record.write(this.buffer, key, value, type);
@@ -45,8 +41,7 @@ public class MemoryRecords implements Records {
     /**
      * Check if we have room for a new record containing the given key/value pair
      */
-    public boolean hasRoomFor(byte[] key,
-                              byte[] value) {
+    public boolean hasRoomFor(byte[] key, byte[] value) {
         return this.buffer.remaining() >= Records.LOG_OVERHEAD + Record.recordSize(key, value);
     }
 

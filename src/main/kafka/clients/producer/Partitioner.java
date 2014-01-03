@@ -15,8 +15,6 @@ public interface Partitioner {
      * @param numPartitions The total number of partitions for the given topic
      * @return The partition to send this record to
      */
-    public int partition(ProducerRecord record,
-                         Cluster cluster,
-                         int numPartitions);
+    public int partition(ProducerRecord record, Cluster cluster, int numPartitions);
 
 }

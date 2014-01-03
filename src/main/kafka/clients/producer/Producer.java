@@ -1,7 +1,10 @@
 package kafka.clients.producer;
 
 /**
- * A Kafka producer that can be used to send records to the cluster.
+ * The interface for the {@link KafkaProducer}
+ * 
+ * @see KafkaProducer
+ * @see MockProducer
  */
 public interface Producer {
 
@@ -16,8 +19,7 @@ public interface Producer {
     /**
      * Send a message and invoke the given callback when the send is complete
      */
-    public RecordSend send(ProducerRecord record,
-                           Callback callback);
+    public RecordSend send(ProducerRecord record, Callback callback);
 
     /**
      * Close this producer

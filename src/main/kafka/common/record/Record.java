@@ -82,12 +82,7 @@ public final class Record {
         this(null, value, CompressionType.NONE);
     }
 
-    public static void write(ByteBuffer buffer,
-                             byte[] key,
-                             byte[] value,
-                             CompressionType codec,
-                             int valueOffset,
-                             int valueSize) {
+    public static void write(ByteBuffer buffer, byte[] key, byte[] value, CompressionType codec, int valueOffset, int valueSize) {
         // skip crc, we will fill that in at the end
         int pos = buffer.position();
         buffer.position(pos + MAGIC_OFFSET);
@@ -119,20 +114,15 @@ public final class Record {
         Utils.writeUnsignedInt(buffer, pos + CRC_OFFSET, crc);
     }
 
-    public static void write(ByteBuffer buffer,
-                             byte[] key,
-                             byte[] value,
-                             CompressionType codec) {
+    public static void write(ByteBuffer buffer, byte[] key, byte[] value, CompressionType codec) {
         write(buffer, key, value, codec, 0, -1);
     }
 
-    public static int recordSize(byte[] key,
-                                 byte[] value) {
+    public static int recordSize(byte[] key, byte[] value) {
         return recordSize(key == null ? 0 : key.length, value == null ? 0 : value.length);
     }
 
-    public static int recordSize(int keySize,
-                                 int valueSize) {
+    public static int recordSize(int keySize, int valueSize) {
         return CRC_LENGTH + MAGIC_LENGTH + ATTRIBUTE_LENGTH + KEY_SIZE_LENGTH + keySize + VALUE_SIZE_LENGTH + valueSize;
     }
 
@@ -143,9 +133,7 @@ public final class Record {
     /**
      * Compute the checksum of the record from the record contents
      */
-    public static long computeChecksum(ByteBuffer buffer,
-                                       int position,
-                                       int size) {
+    public static long computeChecksum(ByteBuffer buffer, int position, int size) {
         return Utils.crc32(buffer.array(), buffer.arrayOffset() + position, size - buffer.arrayOffset());
     }
 

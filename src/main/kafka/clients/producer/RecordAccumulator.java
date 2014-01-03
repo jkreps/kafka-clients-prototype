@@ -46,11 +46,7 @@ public final class RecordAccumulator {
     /**
      * Add a record to the accumulator
      */
-    public RecordSend append(TopicPartition tp,
-                             byte[] key,
-                             byte[] value,
-                             CompressionType compression,
-                             Callback callback) throws InterruptedException {
+    public RecordSend append(TopicPartition tp, byte[] key, byte[] value, CompressionType compression, Callback callback) throws InterruptedException {
         if (closed)
             throw new IllegalStateException("Cannot send after the producer is closed.");
         // check if we have an in-progress batch
@@ -109,8 +105,7 @@ public final class RecordAccumulator {
     /**
      * Drain all the data for the given topic-partitions TODO: There may be a starvation issue due to iteration order
      */
-    public List<RecordBatch> drain(List<TopicPartition> partitions,
-                                   int maxSize) {
+    public List<RecordBatch> drain(List<TopicPartition> partitions, int maxSize) {
         if (partitions.isEmpty())
             return Collections.emptyList();
         int size = 0;

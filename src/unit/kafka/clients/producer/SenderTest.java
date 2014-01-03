@@ -64,12 +64,7 @@ public class SenderTest {
         assertEquals(offset, send.offset());
     }
 
-    private NetworkReceive produceResponse(int correlation,
-                                           int source,
-                                           String topic,
-                                           int part,
-                                           long offset,
-                                           int error) {
+    private NetworkReceive produceResponse(int correlation, int source, String topic, int part, long offset, int error) {
         Struct struct = new Struct(ProtoUtils.currentResponseSchema(ApiKeys.PRODUCE.id));
         Struct response = struct.instance("responses");
         response.set("topic", topic);

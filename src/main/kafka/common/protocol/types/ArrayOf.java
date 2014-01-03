@@ -14,8 +14,7 @@ public class ArrayOf extends Type {
     }
 
     @Override
-    public void write(ByteBuffer buffer,
-                      Object o) {
+    public void write(ByteBuffer buffer, Object o) {
         Object[] objs = (Object[]) o;
         int size = objs.length;
         buffer.putInt(size);

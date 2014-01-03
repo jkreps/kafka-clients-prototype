@@ -33,10 +33,7 @@ public final class RecordBatch {
      * 
      * @return The RecordSend corresponding to this message or null if there isn't sufficent room.
      */
-    public RecordSend tryAppend(byte[] key,
-                                byte[] value,
-                                CompressionType compression,
-                                Callback callback) {
+    public RecordSend tryAppend(byte[] key, byte[] value, CompressionType compression, Callback callback) {
         if (!this.records.hasRoomFor(key, value)) {
             return null;
         } else {
@@ -54,8 +51,7 @@ public final class RecordBatch {
      * @param offset The offset
      * @param errorCode The error code or 0 if no error
      */
-    public void done(long offset,
-                     RuntimeException exception) {
+    public void done(long offset, RuntimeException exception) {
         this.produceFuture.done(offset, exception);
         // execute callbacks
         for (int i = 0; i < this.thunks.size(); i++) {

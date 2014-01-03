@@ -47,9 +47,7 @@ public class Crc32 implements Checksum {
     }
 
     @Override
-    public void update(byte[] b,
-                       int off,
-                       int len) {
+    public void update(byte[] b, int off, int len) {
         int localCrc = crc;
 
         while (len > 7) {

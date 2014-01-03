@@ -9,8 +9,7 @@ public class KafkaThread extends Thread {
         super(runnable, name);
         setDaemon(daemon);
         setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-            public void uncaughtException(Thread t,
-                                          Throwable e) {
+            public void uncaughtException(Thread t, Throwable e) {
                 e.printStackTrace();
             }
         });

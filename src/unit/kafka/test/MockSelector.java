@@ -23,10 +23,7 @@ public class MockSelector implements Selectable {
     }
 
     @Override
-    public void connect(int id,
-                        InetSocketAddress address,
-                        int sendBufferSize,
-                        int receiveBufferSize) throws IOException {
+    public void connect(int id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException {
         this.connected.add(id);
     }
 
@@ -51,8 +48,7 @@ public class MockSelector implements Selectable {
     }
 
     @Override
-    public void poll(long timeout,
-                     List<NetworkSend> sends) throws IOException {
+    public void poll(long timeout, List<NetworkSend> sends) throws IOException {
         this.completedSends.addAll(sends);
         time.sleep(timeout);
     }

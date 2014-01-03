@@ -11,11 +11,7 @@ public class ConfigDef {
 
     private final Map<String, ConfigKey> configKeys = new HashMap<String, ConfigKey>();
 
-    public ConfigDef define(String name,
-                            Type type,
-                            Object defaultValue,
-                            Validator validator,
-                            String documentation) {
+    public ConfigDef define(String name, Type type, Object defaultValue, Validator validator, String documentation) {
         if (configKeys.containsKey(name))
             throw new ConfigException("Configuration " + name + " is defined twice.");
         Object parsedDefault = defaultValue == NO_DEFAULT_VALUE ? NO_DEFAULT_VALUE : parseType(name, defaultValue, type);
@@ -23,23 +19,15 @@ public class ConfigDef {
         return this;
     }
 
-    public ConfigDef define(String name,
-                            Type type,
-                            Object defaultValue,
-                            String documentation) {
+    public ConfigDef define(String name, Type type, Object defaultValue, String documentation) {
         return define(name, type, defaultValue, null, documentation);
     }
 
-    public ConfigDef define(String name,
-                            Type type,
-                            Validator validator,
-                            String documentation) {
+    public ConfigDef define(String name, Type type, Validator validator, String documentation) {
         return define(name, type, NO_DEFAULT_VALUE, validator, documentation);
     }
 
-    public ConfigDef define(String name,
-                            Type type,
-                            String documentation) {
+    public ConfigDef define(String name, Type type, String documentation) {
         return define(name, type, NO_DEFAULT_VALUE, null, documentation);
     }
 
@@ -59,9 +47,7 @@ public class ConfigDef {
         return values;
     }
 
-    private Object parseType(String name,
-                             Object value,
-                             Type type) {
+    private Object parseType(String name, Object value, Type type) {
         try {
             String trimmed = null;
             if (value instanceof String)
@@ -132,8 +118,7 @@ public class ConfigDef {
     }
 
     public interface Validator {
-        public void ensureValid(String name,
-                                Object o);
+        public void ensureValid(String name, Object o);
     }
 
     public static class Range implements Validator {
@@ -149,13 +134,11 @@ public class ConfigDef {
             return new Range(min, Double.MAX_VALUE);
         }
 
-        public static Range between(Number min,
-                                    Number max) {
+        public static Range between(Number min, Number max) {
             return new Range(min, max);
         }
 
-        public void ensureValid(String name,
-                                Object o) {
+        public void ensureValid(String name, Object o) {
             Number n = (Number) o;
             if (n.doubleValue() < min.doubleValue() || n.doubleValue() > max.doubleValue())
                 throw new ConfigException(name, o, "Value must be in the range [" + min + ", " + max + "]");

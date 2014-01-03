@@ -1,7 +1,7 @@
 package kafka.clients.producer;
 
 /**
- * A record to be sent to Kafka
+ * An unserialized key/value pair to be sent to Kafka.
  */
 public final class ProducerRecord {
 
@@ -12,11 +12,11 @@ public final class ProducerRecord {
 
     /**
      * Creates a record to be sent to Kafka using a special key for partitioning
-     * 
      * @param topic The topic the record will be appended to
-     * @param key The key for the record
-     * @param partitionKey An override for the key to be used only for partitioning purposes
-     * @param value The value of the record
+     * @param key The key that will be included in the record
+     * @param partitionKey An override for the key to be used only for partitioning purposes in the client. This key
+     *        will not be retained or available to downstream consumers.
+     * @param value The record contents
      */
     public ProducerRecord(String topic, Object key, Object partitionKey, Object value) {
         if (topic == null)
@@ -29,15 +29,19 @@ public final class ProducerRecord {
 
     /**
      * Create a record to be sent to Kafka
-     * 
      * @param topic The topic the record will be appended to
-     * @param key The key for the record
-     * @param value The value for the record
+     * @param key The key that will be included in the record
+     * @param value The record contents
      */
     public ProducerRecord(String topic, Object key, Object value) {
         this(topic, key, key, value);
     }
 
+    /**
+     * Create a record with no key
+     * @param topic The topic this record should be sent to
+     * @param value The record contents
+     */
     public ProducerRecord(String topic, Object value) {
         this(topic, null, value);
     }
@@ -57,7 +61,7 @@ public final class ProducerRecord {
     }
 
     /**
-     * @return The key to use for partitioning: the partitionKey if one is specified, otherwise the key
+     * @return The key to use for partitioning: the partitionKey if one is specified, otherwise the regular key
      */
     public Object partitionKey() {
         return partitionKey == null ? key : partitionKey;

@@ -83,8 +83,7 @@ public class BufferPoolTest {
         allocation.await();
     }
 
-    private CountDownLatch asyncDeallocate(final BufferPool pool,
-                                           final ByteBuffer buffer) {
+    private CountDownLatch asyncDeallocate(final BufferPool pool, final ByteBuffer buffer) {
         final CountDownLatch latch = new CountDownLatch(1);
         new Thread() {
             public void run() {
@@ -99,8 +98,7 @@ public class BufferPoolTest {
         return latch;
     }
 
-    private CountDownLatch asyncAllocate(final BufferPool pool,
-                                         final int size) {
+    private CountDownLatch asyncAllocate(final BufferPool pool, final int size) {
         final CountDownLatch completed = new CountDownLatch(1);
         new Thread() {
             public void run() {

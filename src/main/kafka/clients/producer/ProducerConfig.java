@@ -52,7 +52,7 @@ public class ProducerConfig extends AbstractConfig {
                                 .define(BLOCK_ON_BUFFER_FULL, Type.BOOLEAN, true, "blah blah");
     }
 
-    public ProducerConfig(Map<? extends Object, ? extends Object> props) {
+    ProducerConfig(Map<? extends Object, ? extends Object> props) {
         super(config, props);
     }
 

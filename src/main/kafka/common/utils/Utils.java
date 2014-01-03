@@ -52,8 +52,7 @@ public class Utils {
      * @param index the index from which to read the integer
      * @return The integer read, as a long to avoid signedness
      */
-    public static long readUnsignedInt(ByteBuffer buffer,
-                                       int index) {
+    public static long readUnsignedInt(ByteBuffer buffer, int index) {
         return buffer.getInt(index) & 0xffffffffL;
     }
 
@@ -63,8 +62,7 @@ public class Utils {
      * @param buffer The buffer to write to
      * @param value The value to write
      */
-    public static void writetUnsignedInt(ByteBuffer buffer,
-                                         long value) {
+    public static void writetUnsignedInt(ByteBuffer buffer, long value) {
         buffer.putInt((int) (value & 0xffffffffL));
     }
 
@@ -75,9 +73,7 @@ public class Utils {
      * @param index The position in the buffer at which to begin writing
      * @param value The value to write
      */
-    public static void writeUnsignedInt(ByteBuffer buffer,
-                                        int index,
-                                        long value) {
+    public static void writeUnsignedInt(ByteBuffer buffer, int index, long value) {
         buffer.putInt(index, (int) (value & 0xffffffffL));
     }
 
@@ -99,9 +95,7 @@ public class Utils {
      * @param size the number of bytes to checksum
      * @return The CRC32
      */
-    public static long crc32(byte[] bytes,
-                             int offset,
-                             int size) {
+    public static long crc32(byte[] bytes, int offset, int size) {
         Crc32 crc = new Crc32();
         crc.update(bytes, offset, size);
         return crc.getValue();
@@ -149,9 +143,7 @@ public class Utils {
     /**
      * Read a byte array from the given offset and size in the buffer
      */
-    public static byte[] toArray(ByteBuffer buffer,
-                                 int offset,
-                                 int size) {
+    public static byte[] toArray(ByteBuffer buffer, int offset, int size) {
         byte[] dest = new byte[size];
         if (buffer.hasArray()) {
             System.arraycopy(buffer.array(), buffer.arrayOffset() + offset, dest, 0, size);

@@ -73,8 +73,7 @@ public class AbstractConfig {
      * @param t The interface the class should implement
      * @return A configured instance of the class
      */
-    public <T> T getConfiguredInstance(String key,
-                                       Class<T> t) {
+    public <T> T getConfiguredInstance(String key, Class<T> t) {
         Class<?> c = getClass(key);
         if (c == null)
             return null;

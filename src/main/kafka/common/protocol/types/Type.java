@@ -9,8 +9,7 @@ import kafka.common.utils.Utils;
  */
 public abstract class Type {
 
-    public abstract void write(ByteBuffer buffer,
-                               Object o);
+    public abstract void write(ByteBuffer buffer, Object o);
 
     public abstract Object read(ByteBuffer buffer);
 
@@ -20,8 +19,7 @@ public abstract class Type {
 
     public static final Type INT8 = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             buffer.put((Byte) o);
         }
 
@@ -51,8 +49,7 @@ public abstract class Type {
 
     public static final Type INT16 = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             buffer.putShort((Short) o);
         }
 
@@ -82,8 +79,7 @@ public abstract class Type {
 
     public static final Type INT32 = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             buffer.putInt((Integer) o);
         }
 
@@ -113,8 +109,7 @@ public abstract class Type {
 
     public static final Type INT64 = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             buffer.putLong((Long) o);
         }
 
@@ -144,8 +139,7 @@ public abstract class Type {
 
     public static final Type STRING = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             byte[] bytes = Utils.utf8((String) o);
             if (bytes.length > Short.MAX_VALUE)
                 throw new SchemaException("String is longer than the maximum string length.");
@@ -182,8 +176,7 @@ public abstract class Type {
 
     public static final Type BYTES = new Type() {
         @Override
-        public void write(ByteBuffer buffer,
-                          Object o) {
+        public void write(ByteBuffer buffer, Object o) {
             ByteBuffer arg = (ByteBuffer) o;
             int pos = arg.position();
             buffer.putInt(arg.remaining());

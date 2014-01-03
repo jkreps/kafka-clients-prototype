@@ -72,8 +72,7 @@ public class ConfigDefTest {
         testBadInputs(Type.LIST, 53, new Object());
     }
 
-    private void testBadInputs(Type type,
-                               Object... values) {
+    private void testBadInputs(Type type, Object... values) {
         for (Object value : values) {
             Map<String, Object> m = new HashMap<String, Object>();
             m.put("name", value);
