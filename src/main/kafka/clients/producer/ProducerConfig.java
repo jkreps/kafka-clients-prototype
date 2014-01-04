@@ -17,6 +17,7 @@ public class ProducerConfig extends AbstractConfig {
     private static final ConfigDef config;
 
     public static final String BROKER_LIST_CONFIG = "metadata.broker.list";
+    public static final String METADATA_FETCH_TIMEOUT_CONFIG = "metadata.fetch.timeout.ms";
     public static final String MAX_PARTITION_SIZE_CONFIG = "max.partition.bytes";
     public static final String TOTAL_BUFFER_MEMORY_CONFIG = "total.memory.bytes";
     public static final String REQUIRED_ACKS_CONFIG = "request.required.acks";
@@ -35,6 +36,7 @@ public class ProducerConfig extends AbstractConfig {
     static {
         /* TODO: add docs */
         config = new ConfigDef().define(BROKER_LIST_CONFIG, Type.LIST, "blah blah")
+                                .define(METADATA_FETCH_TIMEOUT_CONFIG, Type.LONG, 60 * 1000, atLeast(0), "blah blah")
                                 .define(MAX_PARTITION_SIZE_CONFIG, Type.INT, 16384, atLeast(0), "blah blah")
                                 .define(TOTAL_BUFFER_MEMORY_CONFIG, Type.LONG, 32 * 1024 * 1024L, atLeast(0L), "blah blah")
                                 /* TODO: should be a string to handle acks=in-sync */

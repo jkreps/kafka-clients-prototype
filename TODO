@@ -18,7 +18,6 @@ TODO
 - Compression
 - Retries
 - Optimize serialization
-- Improve javadoc
 - Handle acks=0
 
 Discussion points

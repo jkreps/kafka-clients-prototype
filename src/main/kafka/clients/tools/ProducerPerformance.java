@@ -23,6 +23,7 @@ public class ProducerPerformance {
         Properties props = new Properties();
         props.setProperty(ProducerConfig.REQUIRED_ACKS_CONFIG, "1");
         props.setProperty(ProducerConfig.BROKER_LIST_CONFIG, url);
+        props.setProperty(ProducerConfig.METADATA_FETCH_TIMEOUT_CONFIG, Integer.toString(5 * 1000));
         props.setProperty(ProducerConfig.REQUEST_TIMEOUT_CONFIG, Integer.toString(Integer.MAX_VALUE));
         props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteSerialization.class.getName());
         props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteSerialization.class.getName());

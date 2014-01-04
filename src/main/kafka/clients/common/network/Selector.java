@@ -91,7 +91,12 @@ public class Selector implements Selectable {
         socket.setSendBufferSize(sendBufferSize);
         socket.setReceiveBufferSize(receiveBufferSize);
         socket.setTcpNoDelay(true);
-        channel.connect(address);
+        try {
+            channel.connect(address);
+        } catch (UnresolvedAddressException e) {
+            channel.close();
+            throw e;
+        }
         SelectionKey key = channel.register(this.selector, SelectionKey.OP_CONNECT);
         key.attach(new Transmissions(id));
         if (this.keys.containsKey(key))

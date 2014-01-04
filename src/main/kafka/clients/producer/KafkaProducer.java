@@ -1,19 +1,5 @@
 package kafka.clients.producer;
 
-import static kafka.clients.producer.ProducerConfig.BLOCK_ON_BUFFER_FULL;
-import static kafka.clients.producer.ProducerConfig.BROKER_LIST_CONFIG;
-import static kafka.clients.producer.ProducerConfig.CLIENT_ID_CONFIG;
-import static kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG;
-import static kafka.clients.producer.ProducerConfig.LINGER_MS_CONFIG;
-import static kafka.clients.producer.ProducerConfig.MAX_PARTITION_SIZE_CONFIG;
-import static kafka.clients.producer.ProducerConfig.MAX_REQUEST_SIZE_CONFIG;
-import static kafka.clients.producer.ProducerConfig.PARTITIONER_CLASS_CONFIG;
-import static kafka.clients.producer.ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG;
-import static kafka.clients.producer.ProducerConfig.REQUEST_TIMEOUT_CONFIG;
-import static kafka.clients.producer.ProducerConfig.REQUIRED_ACKS_CONFIG;
-import static kafka.clients.producer.ProducerConfig.TOTAL_BUFFER_MEMORY_CONFIG;
-import static kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
-
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +14,7 @@ import kafka.common.Cluster;
 import kafka.common.KafkaException;
 import kafka.common.Serializer;
 import kafka.common.TopicPartition;
+import kafka.common.config.ConfigException;
 import kafka.common.errors.MessageTooLargeException;
 import kafka.common.record.CompressionType;
 import kafka.common.record.Record;
@@ -46,6 +33,7 @@ import kafka.common.utils.SystemTime;
 public class KafkaProducer implements Producer {
 
     private final int maxRequestSize;
+    private final long metadataFetchTimeoutMs;
     private final long totalMemorySize;
     private final Partitioner partitioner;
     private final Metadata metadata;
@@ -74,49 +62,52 @@ public class KafkaProducer implements Producer {
     }
 
     private KafkaProducer(ProducerConfig config) {
-        this.keySerializer = config.getConfiguredInstance(KEY_SERIALIZER_CLASS_CONFIG, Serializer.class);
-        this.valueSerializer = config.getConfiguredInstance(VALUE_SERIALIZER_CLASS_CONFIG, Serializer.class);
-        this.partitioner = config.getConfiguredInstance(PARTITIONER_CLASS_CONFIG, Partitioner.class);
+        this.keySerializer = config.getConfiguredInstance(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, Serializer.class);
+        this.valueSerializer = config.getConfiguredInstance(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, Serializer.class);
+        this.partitioner = config.getConfiguredInstance(ProducerConfig.PARTITIONER_CLASS_CONFIG, Partitioner.class);
         this.metadata = new Metadata();
-        this.maxRequestSize = config.getInt(MAX_REQUEST_SIZE_CONFIG);
-        this.totalMemorySize = config.getLong(TOTAL_BUFFER_MEMORY_CONFIG);
-        this.accumulator = new RecordAccumulator(config.getInt(MAX_PARTITION_SIZE_CONFIG),
+        this.metadataFetchTimeoutMs = config.getLong(ProducerConfig.METADATA_FETCH_TIMEOUT_CONFIG);
+        this.maxRequestSize = config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG);
+        this.totalMemorySize = config.getLong(ProducerConfig.TOTAL_BUFFER_MEMORY_CONFIG);
+        this.accumulator = new RecordAccumulator(config.getInt(ProducerConfig.MAX_PARTITION_SIZE_CONFIG),
                                                  this.totalMemorySize,
-                                                 config.getLong(LINGER_MS_CONFIG),
-                                                 config.getBoolean(BLOCK_ON_BUFFER_FULL),
+                                                 config.getLong(ProducerConfig.LINGER_MS_CONFIG),
+                                                 config.getBoolean(ProducerConfig.BLOCK_ON_BUFFER_FULL),
                                                  new SystemTime());
-        List<InetSocketAddress> urls = parseAddresses(config.getList(BROKER_LIST_CONFIG));
-        this.metadata.update(Cluster.bootstrap(urls), System.currentTimeMillis());
+        List<InetSocketAddress> addresses = parseAndValidateAddresses(config.getList(ProducerConfig.BROKER_LIST_CONFIG));
+        this.metadata.update(Cluster.bootstrap(addresses), System.currentTimeMillis());
         this.sender = new Sender(new Selector(),
                                  this.metadata,
                                  this.accumulator,
-                                 config.getString(CLIENT_ID_CONFIG),
-                                 config.getInt(MAX_REQUEST_SIZE_CONFIG),
-                                 config.getLong(RECONNECT_BACKOFF_MS_CONFIG),
-                                 (short) config.getInt(REQUIRED_ACKS_CONFIG),
-                                 config.getInt(REQUEST_TIMEOUT_CONFIG),
+                                 config.getString(ProducerConfig.CLIENT_ID_CONFIG),
+                                 config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG),
+                                 config.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),
+                                 (short) config.getInt(ProducerConfig.REQUIRED_ACKS_CONFIG),
+                                 config.getInt(ProducerConfig.REQUEST_TIMEOUT_CONFIG),
                                  new SystemTime());
         this.ioThread = new KafkaThread("kafka-network-thread", this.sender, true);
         this.ioThread.start();
     }
 
-    private static List<InetSocketAddress> parseAddresses(List<String> urls) {
+    private static List<InetSocketAddress> parseAndValidateAddresses(List<String> urls) {
         List<InetSocketAddress> addresses = new ArrayList<InetSocketAddress>();
         for (String url : urls) {
             if (url != null && url.length() > 0) {
                 String[] pieces = url.split(":");
                 if (pieces.length != 2)
-                    throw new IllegalArgumentException("Invalid url in metadata.broker.list: " + url);
+                    throw new ConfigException("Invalid url in metadata.broker.list: " + url);
                 try {
-                    // TODO: This actually does DNS resolution (?), which is a little weird
-                    addresses.add(new InetSocketAddress(pieces[0], Integer.parseInt(pieces[1])));
+                    InetSocketAddress address = new InetSocketAddress(pieces[0], Integer.parseInt(pieces[1]));
+                    if (address.isUnresolved())
+                        throw new ConfigException("DNS resolution failed for metadata bootstrap url: " + url);
+                    addresses.add(address);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid port in metadata.broker.list: " + url);
+                    throw new ConfigException("Invalid port in metadata.broker.list: " + url);
                 }
             }
         }
         if (addresses.size() < 1)
-            throw new IllegalArgumentException("No bootstrap urls given in metadata.broker.list.");
+            throw new ConfigException("No bootstrap urls given in metadata.broker.list.");
         return addresses;
     }
 
@@ -183,7 +174,7 @@ public class KafkaProducer implements Producer {
      */
     @Override
     public RecordSend send(ProducerRecord record, Callback callback) {
-        Cluster cluster = metadata.fetch(record.topic());
+        Cluster cluster = metadata.fetch(record.topic(), this.metadataFetchTimeoutMs);
         byte[] key = keySerializer.toBytes(record.key());
         byte[] value = valueSerializer.toBytes(record.value());
         byte[] partitionKey = keySerializer.toBytes(record.partitionKey());

@@ -45,7 +45,7 @@ public class MetadataTest {
     private Thread asyncFetch(final String topic) {
         Thread thread = new Thread() {
             public void run() {
-                metadata.fetch(topic);
+                metadata.fetch(topic, Integer.MAX_VALUE);
             }
         };
         thread.start();

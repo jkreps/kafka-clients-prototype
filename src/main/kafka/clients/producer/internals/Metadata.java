@@ -6,6 +6,7 @@ import java.util.Set;
 
 import kafka.common.Cluster;
 import kafka.common.PartitionInfo;
+import kafka.common.errors.TimeoutException;
 
 /**
  * A class encapsulating some of the logic around metadata.
@@ -57,18 +58,23 @@ public final class Metadata {
      * Fetch cluster metadata including partitions for the given topic. If there is no metadata for the given topic,
      * block waiting for an update.
      * @param topic The topic we want metadata for
+     * @param maxWaitMs The maximum amount of time to block waiting for metadata
      */
-    public synchronized Cluster fetch(String topic) {
+    public synchronized Cluster fetch(String topic, long maxWaitMs) {
         List<PartitionInfo> partitions = null;
         do {
             partitions = cluster.partitionsFor(topic);
             if (partitions == null) {
+                long begin = System.currentTimeMillis();
                 topics.add(topic);
                 forceUpdate = true;
                 try {
-                    wait();
+                    wait(maxWaitMs);
                 } catch (InterruptedException e) { /* this is fine, just try again */
                 }
+                long ellapsed = System.currentTimeMillis() - begin;
+                if (ellapsed > maxWaitMs)
+                    throw new TimeoutException("Failed to update metadata after " + maxWaitMs + " ms.");
             } else {
                 return cluster;
             }
